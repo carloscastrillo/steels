@@ -4,12 +4,18 @@ Sprint: 2 -> 3 (limpieza post-migración)
 Fecha: Mayo 2026
 
 Contexto:
-    En el modelo pre-Sprint 2, el sistema operaba con la tabla legacy `quotes`.
-    A partir de Sprint 2, el modelo migró a `sourcing_quotes` y
-    `sourcing_decisions`, que son las tablas operativas actuales.
+    En el modelo pre-Sprint 2, el sistema operaba con las tablas `quotes` y
+    `decisions` como tablas core. A partir de Sprint 2, el modelo migró a
+    `sourcing_quotes` y `sourcing_decisions`, que son las tablas operativas
+    actuales.
 
     Esta migración elimina la tabla legacy `quotes` si aún existe, para evitar
     confusión en el schema.
+
+    La tabla `decisions` legacy se deja en la DB porque tiene 0 filas y pertenece
+    al modelo anterior. Puede eliminarse en una limpieza posterior junto con
+    otras tablas legacy (`requests`, `providers`, `documents`) una vez confirmado
+    que ningún script hace referencia a ellas.
 
 Estado:
     YA EJECUTADO sobre `db/steel_mvp.db`.
