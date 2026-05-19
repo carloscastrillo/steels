@@ -1,0 +1,41 @@
+﻿# Entorno virtual
+.venv/
+venv/
+env/
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+*.pdb
+*.egg-info/
+dist/
+build/
+*.egg
+
+# SQLite local
+*.db
+*.db-shm
+*.db-wal
+
+# Exports generados
+exports/*.xlsx
+exports/*.json
+exports/backups/
+
+# Datos raw
+data/raw/pdfs/
+data/raw/sap/
+data/raw/excel/
+
+# IDEs
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
