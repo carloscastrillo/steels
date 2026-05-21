@@ -1,197 +1,212 @@
-# Arquitectura corregida del proyecto - v2
+# Architecture v2 — HIERROS Steel MVP
 
-## 1. Objetivo real del sistema
-Construir un sistema híbrido que sustituya progresivamente el Excel operativo actual mediante:
-- captura de datos desde fuentes reales
-- almacenamiento centralizado
-- trazabilidad
-- comparación operativa
-- soporte a decisión
+## 1. Objetivo del sistema
 
-El sistema NO se construirá inicialmente como una app de escritorio completa.
-Primero se construirá el backend de datos y la capa de transformación.
+El objetivo del sistema es convertir un flujo operativo basado en Excel, SAP y documentos de proveedor en una base de datos local estructurada, trazable y útil para apoyar decisiones de compra de acero.
+
+El MVP no pretende sustituir SAP ni automatizar completamente la decisión comercial. Su función es:
+
+- importar datos operativos del Excel BOSS;
+- normalizar clientes, materiales y necesidades de compra;
+- calcular opciones comparables por proveedor;
+- construir shortlists de sourcing;
+- registrar quotes manuales o extraídas desde documentos;
+- revisar manualmente las quotes dudosas;
+- registrar decisiones de compra;
+- generar reporting operativo y ejecutivo.
+
+La arquitectura sigue una regla central:
+
+> ningún dato bruto entra directamente al core sin pasar por staging y por un transformer controlado.
 
 ---
 
 ## 2. Fuentes reales del sistema
 
-### Fuente A - SAP ZSD017
+### Fuente A — SAP ZSD017
+
 Naturaleza:
-- histórico de ventas
-- datos comerciales y de materiales ya vendidos
+
+- Export de SAP con histórico de ventas.
+- Fuente estructurada.
+- Formato Excel exportado desde SAP.
+- Sirve como base histórica de clientes, materiales y ventas.
 
 Uso en el sistema:
-- alimentar staging SAP
-- derivar clientes
-- derivar materiales históricos
-- aportar contexto comercial e histórico
 
-No se usará directamente para crear requests de compra en esta fase.
+- Carga inicial en `stg_sap_zsd017_sales`.
+- Normalización posterior hacia tablas core.
+- Alimenta el catálogo de clientes y materiales.
+
+Estado actual:
+
+- Fuente integrada en staging.
+- Tabla disponible en el schema canónico.
+- No es el flujo principal del Sprint 4, pero sigue siendo fuente estructural del sistema.
 
 ---
 
-### Fuente B - Excel operativo del jefe
+### Fuente B — Excel operativo BOSS
+
 Naturaleza:
-- archivo híbrido de trabajo
-- mezcla de datos exportados, fórmulas y entradas manuales
+
+- Excel mensual usado por el jefe.
+- Archivo principal de trabajo operativo.
+- Contiene requests, necesidades de compra, opciones de proveedor y costes comparativos.
 
 Uso en el sistema:
-- alimentar staging Excel operativo
-- detectar necesidades operativas reales
-- identificar lógica manual actual
-- descubrir qué columnas representan comparación, materiales nuevos y reglas de negocio
 
-No se considerará fuente maestra final.
+- Importación a `stg_boss_matrix`.
+- Generación de `request_specs`.
+- Generación de `sourcing_requests`.
+- Generación de `supplier_options`.
+- Calibración de `provider_capabilities`.
+- Construcción de `sourcing_request_shortlist`.
+- Exportación a `sourcing_report.xlsx`.
+
+Estado actual:
+
+- Fuente principal del pipeline mensual.
+- Pipeline BOSS → staging → core → reporting validado de punta a punta.
 
 ---
 
-### Fuente C - Documentos de proveedor
+### Fuente C — Documentos de proveedor
+
 Naturaleza:
-- PDFs
-- Excels
-- mails
-- listas de precios
+
+- PDFs de listas de precios de extras, formato principal actual.
+- Excels de proveedor, soporte futuro.
+- Emails de proveedor, soporte futuro.
 
 Uso en el sistema:
-- alimentar documents
-- generar quotes en fases posteriores
+
+- Registrar el documento en `stg_supplier_documents`.
+- Extraer quotes en bruto a `stg_supplier_quotes` mediante parsers Python.
+- Revisar manualmente las quotes desde el CLI.
+- Aprobar, rechazar o asignar manualmente una quote a una `sourcing_request`.
+- Promover quotes aprobadas a `sourcing_quotes`.
+
+Cobertura actual de parsers:
+
+- AM-like: ArcelorMittal / ILVA / EN_*.
+- Tata Steel.
+- Galmed pendiente de parser específico.
+- Luso / Lusosider pendiente de parser específico.
+
+Estado actual:
+
+- Fuente operativa parcial.
+- El flujo documental funciona con staging + revisión manual.
+- El matching automático completo queda fuera del MVP actual.
 
 ---
 
 ## 3. Capas del sistema
 
-### Capa 1 - Raw
-Archivos originales sin modificar.
+## Capa 1 — Raw data
 
-Ubicación:
-- data/raw/sap/
-- data/raw/excel/
-- data/raw/pdfs/
-- data/raw/mails/
+Contiene los ficheros tal como llegan antes de cualquier transformación.
+
+Ejemplos:
+
+- `data/raw/excel/matriz.xlsm`
+- `data/raw/pdfs/*.pdf`
+- exports SAP
+- futuros textos de email o documentos adjuntos
 
 Regla:
-- nunca se sobreescriben
-- se conservan como evidencia de origen
+
+- Los ficheros raw no se modifican.
+- Si un dato se transforma, se guarda en staging o core.
+- Los raw sirven como referencia y trazabilidad.
 
 ---
 
-### Capa 2 - Staging
+## Capa 2 — Staging
+
 Tablas que representan las fuentes tal como llegan, con mínima limpieza técnica.
 
-Tablas previstas:
-- stg_sap_zsd017_sales
-- stg_boss_matrix
-
-Objetivo:
-- conservar datos fuente
-- facilitar depuración
-- separar extracción de transformación
-- permitir rehacer procesos sin perder trazabilidad
-
----
-
-### Capa 3 - Core
-Modelo de negocio limpio del sistema.
-
 Tablas actuales:
-- clients
-- materials
-- requests
-- providers
-- documents
-- quotes
-- decisions
 
-Regla:
-- estas tablas no se alimentan directamente desde archivos brutos
-- se alimentan desde staging mediante reglas controladas
+- `stg_sap_zsd017_sales` → fuente SAP ZSD017.
+- `stg_boss_matrix` → Excel operativo BOSS.
+- `stg_boss_request_candidates` → candidatos de requests desde BOSS antes de promoción.
+- `stg_supplier_documents` → registro de documentos de proveedor.
+- `stg_supplier_quotes` → quotes extraídas desde PDFs, pendientes de revisión.
 
----
+Regla de staging:
 
-### Capa 4 - Interfaces
-Herramientas de uso humano.
-
-Inicialmente:
-- scripts Python
-- Excel de revisión
-- Power BI opcional
-
-Más adelante:
-- automatización SAP GUI
-- OCR
-- app propia
+- Nunca se escribe directamente desde archivos brutos al core.
+- Staging actúa como zona de cuarentena.
+- La promoción al core siempre pasa por un transformer controlado.
+- `stg_supplier_quotes.review_status` marca el estado de revisión:
+  - `pending`
+  - `approved`
+  - `rejected`
+- Las quotes extraídas automáticamente deben entrar como revisables antes de usarse en decisiones.
 
 ---
 
-## 4. Principio central del proyecto
+## Capa 3 — Core
 
-La fuente de verdad del sistema será SQLite.
+Modelo de negocio limpio. Solo se alimenta desde staging mediante transformers.
 
-Esto implica:
-- SAP no será la fuente maestra directa
-- Excel no será la fuente maestra
-- Power BI no será la fuente maestra
-- Python será el motor de transformación
-- SQLite será el repositorio central del estado limpio del sistema
+### Catálogo
 
----
+- `clients`  
+  Catálogo de clientes normalizados.
 
-## 5. Flujo general del proyecto
+- `client_aliases`  
+  Aliases de nombres de cliente para mejorar matching desde BOSS.
 
-### Flujo corregido
-Fuentes brutas
--> staging
--> transformación controlada
--> modelo core
--> revisión / análisis
--> automatización posterior
+### Especificaciones técnicas
 
-### Traducción práctica
-SAP export / Excel jefe / PDFs
--> Python
--> SQLite staging
--> reglas de transformación
--> SQLite core
--> Excel revisión / Power BI
--> futura app o automatización
+- `materials`  
+  Catálogo de materiales deduplicados mediante `material_key`.
 
----
+- `request_specs`  
+  Combinaciones técnicas únicas de producto, calidad y dimensiones.
 
-## 6. Decisiones congeladas
+### Ciclo mensual de sourcing
 
-- ZSD017 se tratará como histórico SAP, no como request actual.
-- El Excel del jefe se tratará como fuente operativa híbrida, no como base maestra.
-- Se introducirán tablas staging antes de construir importadores finales.
-- El modelo core actual se mantiene.
-- La app de escritorio queda pospuesta hasta que el backend esté estabilizado.
-- SAP GUI scripting se considera capacidad futura, no prioridad inmediata.
+- `sourcing_requests`  
+  Necesidades de compra del mes. Sustituye al modelo legacy `requests`.
 
----
+- `request_intakes`  
+  Trazabilidad de cómo se creó cada request manual o automática.
 
-## 7. Consecuencia práctica para el desarrollo
+- `provider_capabilities`  
+  Rangos de capacidad por proveedor, producto, espesor y ancho.
 
-El siguiente trabajo no será:
-- importar SAP directamente a requests
+- `supplier_options`  
+  Opciones de proveedor por request, generadas desde BOSS.
 
-El siguiente trabajo será:
-- añadir tablas staging al esquema
-- cargar ZSD017 a staging
-- cargar el Excel operativo a staging
-- entender cómo derivar core desde ambas fuentes
+- `sourcing_request_shortlist`  
+  Top opciones por request, con delta frente a benchmark AM Spot.
+
+### Ciclo de cotización y decisión
+
+- `sourcing_quotes`  
+  Quotes validadas, ya sean manuales o promovidas desde staging documental.
+
+- `sourcing_decisions`  
+  Decisiones de compra adjudicadas.
+
+Reglas del core:
+
+- Ninguna tabla core se escribe directamente desde importers.
+- Toda escritura al core pasa por un transformer con validación explícita.
+- Las quotes con `needs_manual_review = 1` deben tratarse como dudosas.
+- El cálculo de ahorro y next-best quote debe evitar contaminar resultados con quotes no revisadas o claramente anómalas.
 
 ---
 
-## 8. Estado del proyecto tras esta corrección
+## Capa 4 — Reporting e interfaces
 
-### Backend
-- correcto y bien orientado
+### CLI
 
-### Modelo core
-- válido, pero todavía no alimentado por la fuente correcta
+El punto de entrada principal es:
 
-### Estrategia MVP
-- sigue siendo híbrida
-- ahora con arquitectura más sólida y más escalable
-
-### Riesgo principal actual
-- entender exactamente qué parte del Excel del jefe representa operativa real y qué parte es solo apoyo manual
+```bash
+python src/app_cli.py
