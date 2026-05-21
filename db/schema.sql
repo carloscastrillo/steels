@@ -1,7 +1,7 @@
 -- ============================================================
 -- HIERROS Steel MVP — Schema canónico
 -- Generado desde: C:\Users\carca\OneDrive\CARLOS\AA PRACTICAS\steel\db\steel_mvp.db
--- Última generación: 2026-05-19 19:10:20
+-- Última generación: 2026-05-21 12:58:59
 --
 -- Este fichero debe reflejar la estructura REAL de steel_mvp.db.
 -- Capas: staging SAP, staging BOSS, staging proveedor, core operativo y legacy.
@@ -380,76 +380,8 @@ CREATE TABLE IF NOT EXISTS sourcing_decisions (
 
 
 -- ============================================================
--- CAPA 5 — LEGACY / PRE-SPRINT 2
--- ============================================================
-
--- LEGACY: no usar en código nuevo. Usar sourcing_requests.
--- table: requests
-CREATE TABLE IF NOT EXISTS requests (
-    id INTEGER PRIMARY KEY,
-    material_id INTEGER NOT NULL,
-    requested_tons REAL NOT NULL CHECK (requested_tons > 0),
-    request_date TEXT NOT NULL,
-    target_delivery_date TEXT,
-    destination TEXT,
-    status TEXT NOT NULL CHECK (
-        status IN ('pending', 'quoted', 'awarded', 'rejected', 'cancelled')
-    ),
-    notes TEXT,
-    created_at TEXT NOT NULL,
-    FOREIGN KEY (material_id) REFERENCES materials(id)
-);
-
--- LEGACY: no usar en código nuevo. Usar sourcing_decisions.
--- table: decisions
-CREATE TABLE IF NOT EXISTS decisions (
-    id INTEGER PRIMARY KEY,
-    request_id INTEGER NOT NULL UNIQUE,
-    selected_quote_id INTEGER NOT NULL,
-    decision_reason TEXT,
-    decided_at TEXT NOT NULL,
-    decided_by TEXT,
-    created_at TEXT NOT NULL,
-    FOREIGN KEY (request_id) REFERENCES requests(id),
-    FOREIGN KEY (selected_quote_id) REFERENCES quotes(id)
-);
-
--- LEGACY: tabla vacía del modelo antiguo.
--- table: providers
-CREATE TABLE IF NOT EXISTS providers (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL,
-    email TEXT,
-    phone TEXT,
-    notes TEXT,
-    is_active INTEGER NOT NULL CHECK (is_active IN (0, 1)),
-    created_at TEXT NOT NULL
-);
-
--- LEGACY: no usar en flujo nuevo. Usar stg_supplier_documents.
--- table: documents
-CREATE TABLE IF NOT EXISTS documents (
-    id INTEGER PRIMARY KEY,
-    file_name TEXT NOT NULL,
-    file_type TEXT NOT NULL CHECK (
-        file_type IN ('sap_export', 'excel', 'pdf', 'mail', 'clickview_export')
-    ),
-    source_path TEXT NOT NULL,
-    source_system TEXT NOT NULL,
-    import_date TEXT NOT NULL,
-    raw_reference TEXT,
-    notes TEXT,
-    created_at TEXT NOT NULL
-);
-
-
--- ============================================================
 -- ÍNDICES
 -- ============================================================
-
--- index: idx_documents_file_type ON documents
-CREATE INDEX IF NOT EXISTS idx_documents_file_type
-ON documents(file_type);
 
 -- index: idx_materials_material_key ON materials
 CREATE INDEX IF NOT EXISTS idx_materials_material_key
@@ -486,14 +418,6 @@ CREATE INDEX IF NOT EXISTS idx_request_specs_product_grade
 -- index: idx_request_specs_spec_key ON request_specs
 CREATE INDEX IF NOT EXISTS idx_request_specs_spec_key
     ON request_specs(spec_key);
-
--- index: idx_requests_material_id ON requests
-CREATE INDEX IF NOT EXISTS idx_requests_material_id
-ON requests(material_id);
-
--- index: idx_requests_status ON requests
-CREATE INDEX IF NOT EXISTS idx_requests_status
-ON requests(status);
 
 -- index: idx_sourcing_decisions_quote ON sourcing_decisions
 CREATE INDEX IF NOT EXISTS idx_sourcing_decisions_quote
