@@ -240,6 +240,11 @@ MENU_OPTIONS = {
         "script": TRANSFORMERS_DIR / "status_db.py",
         "group": "system",
     },
+        "21": {
+        "label":  "Ejecutar tests de parsers",
+        "script": SRC_DIR / "tests" / "test_parsers.py",
+        "group":  "system",
+    },
 
     # --- Sprint 2: Quotes & Decisions ---
     "9": {

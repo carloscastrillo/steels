@@ -4,6 +4,7 @@ import argparse
 from datetime import datetime
 import json
 from pathlib import Path
+import os
 import re
 import sqlite3
 
@@ -11,8 +12,7 @@ import pdfplumber
 from parser_utils import parse_price, parse_range_midpoint
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-DB_PATH = BASE_DIR / "db" / "steel_mvp.db"
-
+DB_PATH = Path(os.environ.get("STEEL_DB_PATH", BASE_DIR / "db" / "steel_mvp.db"))
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Parser Luso/Lusosider para PDFs de listas de extras.")
