@@ -55,10 +55,10 @@ El objetivo es que el inventario sea:
 | TATA | Tata Steel_Price extra list EN - Hot rolled products EURO.pdf | pdf | en | yes | 1 | extras | yes | import_pdf_pricelist_tata.py | parser tata |
 | TATA | Tata-Steel-MagiZinc price extras euro EN 0323.pdf | pdf | en | yes | 1 | extras | yes | import_pdf_pricelist_tata.py | variante MagiZinc |
 | TATA | Tata-Steel-Ymagine price extras euro EN 0323.pdf | pdf | en | yes | 1 | extras | yes | import_pdf_pricelist_tata.py | variante Ymagine |
-| GALMED | Tabla de Extras Galmed Abril 2026 Zn-ZnMg.pdf | pdf | es | yes | 10 | extras | yes | PENDIENTE | 1 pág, 10 tablas; matriz zinc + ancho + calidad DX; parser específico requerido |
-| LUSO | Lista_CG2_R15_01out14.pdf | pdf | pt | yes | 3 | extras | maybe | PENDIENTE | chapa galvanizada; texto duplicado en PDF (LL II SS TT); tabla Espessura×Revestimento |
-| LUSO | Lista_DK2_R6_01out14.pdf | pdf | pt | yes | 5 | extras | yes | PENDIENTE | chapa decapada; estructura más simple |
-| LUSO | Lista_LF2_R6_01out14.pdf | pdf | pt | yes | 4 | extras | maybe | PENDIENTE | chapa laminada frío; texto duplicado |
+| GALMED | Tabla de Extras Galmed Abril 2026 Zn-ZnMg.pdf | pdf | es | yes | 10 | extras | yes | import_pdf_pricelist_galmed.py | 1 pág, 10 tablas; matriz zinc + ancho + calidad DX; parser validado |
+| LUSO | Lista_CG2_R15_01out14.pdf | pdf | pt | yes | 3 | extras | yes | import_pdf_pricelist_luso.py | chapa galvanizada; parser validado; precios 2014, siempre needs_manual_review=1 |
+| LUSO | Lista_DK2_R6_01out14.pdf | pdf | pt | yes | 5 | extras | yes | import_pdf_pricelist_luso.py | chapa decapada; parser validado; precios 2014, siempre needs_manual_review=1 |
+| LUSO | Lista_LF2_R6_01out14.pdf | pdf | pt | yes | 4 | extras | yes | import_pdf_pricelist_luso.py | chapa laminada frío; parser validado; precios 2014, siempre needs_manual_review=1 |
 
 ## Cobertura actual por proveedor
 
@@ -68,8 +68,8 @@ El objetivo es que el inventario sea:
 | ILVA | 3 | Validado mediante AM-like | import_pdf_pricelist_am_like.py |
 | EN | 3 | Validado mediante AM-like | import_pdf_pricelist_am_like.py |
 | TATA | 5 | Validado | import_pdf_pricelist_tata.py |
-| GALMED | 1 | Pendiente de parser específico | — |
-| LUSO | 3 | Pendiente de parser específico | — |
+| GALMED | 1 |  Validado | import_pdf_pricelist_galmed.py |
+| LUSO | 3 | Validado con revisión obligatoria | import_pdf_pricelist_luso.py |
 
 ## Lectura técnica
 

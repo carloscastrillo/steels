@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 import re
 import sqlite3
-import unicodedata
 
 import pdfplumber
 
@@ -16,9 +15,7 @@ DB_PATH = BASE_DIR / "db" / "steel_mvp.db"
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Parser Luso/Lusosider para PDFs de listas de precios por tablas."
-    )
+    parser = argparse.ArgumentParser(description="Parser Luso/Lusosider para PDFs de listas de extras.")
     parser.add_argument("--pdf", required=True, help="Ruta al PDF")
     parser.add_argument("--supplier-code", default="LUSO", help="Código proveedor")
     parser.add_argument("--supplier-name", default="Lusosider", help="Nombre proveedor")
@@ -45,32 +42,31 @@ def extract_all_text(pdf_path: Path) -> str:
 
 
 def extract_tables(pdf_path: Path) -> list[list[list[str | None]]]:
-    all_tables: list[list[list[str | None]]] = []
+    tables_out: list[list[list[str | None]]] = []
     with pdfplumber.open(pdf_path) as pdf:
         for page in pdf.pages:
             tables = page.extract_tables()
             if tables:
-                all_tables.extend(tables)
-    return all_tables
+                tables_out.extend(tables)
+    return tables_out
 
 
-def ensure_document_row(
-    conn: sqlite3.Connection,
-    pdf_path: Path,
-    supplier_code: str,
-    raw_text: str,
-) -> int:
+def ensure_document_row(conn: sqlite3.Connection, pdf_path: Path, supplier_code: str, raw_text: str) -> int:
     imported_at = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
-    existing = conn.execute("""
+    existing = conn.execute(
+        """
         SELECT id
         FROM stg_supplier_documents
         WHERE file_path = ?
         LIMIT 1
-    """, (str(pdf_path),)).fetchone()
+        """,
+        (str(pdf_path),),
+    ).fetchone()
 
     if existing is None:
-        conn.execute("""
+        conn.execute(
+            """
             INSERT INTO stg_supplier_documents (
                 file_name,
                 file_type,
@@ -82,32 +78,29 @@ def ensure_document_row(
                 notes
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            pdf_path.name,
-            "pdf",
-            supplier_code,
-            str(pdf_path),
-            imported_at,
-            0,
-            raw_text,
-            "AUTO_REGISTERED_BY_LUSO_PDF_IMPORT",
-        ))
+            """,
+            (
+                pdf_path.name,
+                "pdf",
+                supplier_code,
+                str(pdf_path),
+                imported_at,
+                0,
+                raw_text,
+                "AUTO_REGISTERED_BY_LUSO_PDF_IMPORT",
+            ),
+        )
         return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
     document_id = existing["id"]
-    conn.execute("""
+    conn.execute(
+        """
         UPDATE stg_supplier_documents
-        SET
-            supplier_code = ?,
-            imported_at = ?,
-            raw_text = ?
+        SET supplier_code = ?, imported_at = ?, raw_text = ?
         WHERE id = ?
-    """, (
-        supplier_code,
-        imported_at,
-        raw_text,
-        document_id,
-    ))
+        """,
+        (supplier_code, imported_at, raw_text, document_id),
+    )
     return document_id
 
 
@@ -117,261 +110,350 @@ def clean_cell(value: object) -> str:
     return " ".join(str(value).replace("\n", " ").strip().split())
 
 
-def remove_accents(text: str) -> str:
-    normalized = unicodedata.normalize("NFKD", text)
-    return "".join(ch for ch in normalized if not unicodedata.combining(ch))
-
-
-def collapse_duplicated_chars(text: str) -> str:
-    """Corrige casos tipo LLIISSTTAA -> LISTA cuando todo viene duplicado."""
-    if len(text) < 4 or len(text) % 2 != 0:
-        return text
-
-    pairs = [text[i:i + 2] for i in range(0, len(text), 2)]
-    if not pairs:
-        return text
-
-    duplicated = sum(1 for pair in pairs if len(pair) == 2 and pair[0] == pair[1])
-    if duplicated / len(pairs) >= 0.75:
-        return "".join(pair[0] for pair in pairs)
-
-    return text
-
-
-def normalize_text(text: str) -> str:
-    text = clean_cell(text)
-    text = collapse_duplicated_chars(text)
-    text = remove_accents(text)
-    return text.upper()
+def normalize_decimal_text(text: str) -> str:
+    return text.replace(".", "").replace(",", ".")
 
 
 def parse_number(value: object) -> float | None:
     text = clean_cell(value)
     if not text or text in {"-", "—"}:
         return None
-
-    text = text.replace(".", "").replace(",", ".")
-    match = re.search(r"-?\d+(?:\.\d+)?", text)
+    normalized = normalize_decimal_text(text)
+    match = re.search(r"-?\d+(?:\.\d+)?", normalized)
     if not match:
         return None
-
     try:
         return float(match.group(0))
     except ValueError:
         return None
 
 
-def parse_thickness_range(value: object) -> tuple[float | None, float | None, float | None, str]:
-    text = clean_cell(value)
-    normalized = text.replace(",", ".")
+def parse_range_label(value: object) -> tuple[float | None, float | None, float | None, str]:
+    label = clean_cell(value)
+    normalized = normalize_decimal_text(label)
     nums = [float(x) for x in re.findall(r"\d+(?:\.\d+)?", normalized)]
-
     if len(nums) >= 2:
         lo, hi = nums[0], nums[1]
-        return lo, hi, (lo + hi) / 2, text
-
+        return lo, hi, (lo + hi) / 2, label
     if len(nums) == 1:
-        return nums[0], nums[0], nums[0], text
-
-    return None, None, None, text
-
-
-def normalize_coating(header: str) -> str | None:
-    cleaned = normalize_text(header)
-    match = re.search(r"\bZ\s*([0-9]{2,3})\b", cleaned)
-    if match:
-        return f"Z{match.group(1)}"
-    return None
+        return nums[0], nums[0], nums[0], label
+    return None, None, None, label
 
 
-def detect_luso_document_type(pdf_path: Path, tables: list[list[list[str | None]]]) -> str:
-    name = pdf_path.name.upper()
-    if "CG" in name:
+def parse_width_range(value: object) -> tuple[float | None, str]:
+    _, _, mid, label = parse_range_label(value)
+    return mid, label
+
+
+def detect_document_type(pdf_path: Path, tables: list[list[list[str | None]]]) -> str:
+    name = pdf_path.name.lower()
+    if "cg" in name:
         return "galvanized"
-    if "DK" in name:
+    if "dk" in name:
         return "pickled"
-    if "LF" in name:
+    if "lf" in name:
         return "cold_rolled"
 
-    joined = " ".join(
-        normalize_text(cell)
-        for table in tables[:3]
-        for row in table[:5]
-        for cell in row
-        if cell
-    )
-
-    if "REVESTIMENTO" in joined or "GALVAN" in joined:
+    joined = " ".join(clean_cell(cell).lower() for table in tables for row in table for cell in row)
+    if "revestimento" in joined:
         return "galvanized"
-    if "DECAP" in joined:
+    if "decap" in joined:
         return "pickled"
-    if "LAMIN" in joined or "FRIO" in joined:
+    if "frio" in joined or "dc01" in joined:
         return "cold_rolled"
-
     return "unknown"
 
 
-def extract_matrix_rows(
-    table: list[list[object]],
+def has_header_terms(table: list[list[object]], *terms: str) -> bool:
+    if not table:
+        return False
+    joined = " ".join(clean_cell(cell).lower() for row in table[:4] for cell in row)
+    return all(term.lower() in joined for term in terms)
+
+
+def add_row(
+    rows: list[dict],
+    *,
     document_type: str,
-) -> list[dict]:
-    if not table or len(table) < 2:
-        return []
+    category: str,
+    label: str,
+    price: float,
+    thickness_label: str | None = None,
+    thickness_mid: float | None = None,
+    width_label: str | None = None,
+    width_mid: float | None = None,
+    raw_json: dict,
+) -> None:
+    parts = [f"LUSO {document_type.upper()}", category, label]
+    if thickness_label:
+        parts.append(f"espessura {thickness_label}")
+    if width_label:
+        parts.append(f"largura {width_label}")
 
-    header = table[0]
-    coatings_by_col: dict[int, str] = {}
+    rows.append(
+        {
+            "extracted_grade": " | ".join(parts),
+            "extracted_thickness_mm": thickness_mid,
+            "extracted_width_mm": width_mid,
+            "extracted_price_per_ton": price,
+            "currency": "EUR",
+            "raw_text_snippet": " | ".join(
+                str(x) for x in [category, label, thickness_label, width_label, price] if x not in (None, "")
+            ),
+            "raw_row_json": raw_json,
+        }
+    )
 
-    for idx, cell in enumerate(header):
-        coating = normalize_coating(clean_cell(cell))
-        if coating:
-            coatings_by_col[idx] = coating
 
-    if len(coatings_by_col) < 2:
-        return []
-
+def extract_cg2_rows(tables: list[list[list[str | None]]]) -> list[dict]:
     rows: list[dict] = []
-    seen: set[tuple[str, str, float]] = set()
+    coating_table = None
+    width_table = None
 
-    for raw_row in table[1:]:
-        if not raw_row or len(raw_row) < 2:
-            continue
+    for table in tables:
+        if has_header_terms(table, "espessura", "revestimento"):
+            coating_table = table
+        elif has_header_terms(table, "espessura", "largura"):
+            width_table = table
 
-        thickness_min, thickness_max, thickness_mid, thickness_label = parse_thickness_range(raw_row[0])
-        if thickness_mid is None:
-            continue
+    if coating_table:
+        header = coating_table[1] if len(coating_table) > 1 else []
+        coatings_by_col = {
+            idx: clean_cell(cell).upper()
+            for idx, cell in enumerate(header)
+            if clean_cell(cell).upper().startswith("Z")
+        }
 
-        for col_idx, coating in coatings_by_col.items():
-            if col_idx >= len(raw_row):
+        for row in coating_table[2:]:
+            _, _, thickness_mid, thickness_label = parse_range_label(row[0] if row else None)
+            if thickness_mid is None:
                 continue
+            for col_idx, coating in coatings_by_col.items():
+                if col_idx >= len(row):
+                    continue
+                price = parse_number(row[col_idx])
+                if price is None:
+                    continue
+                add_row(
+                    rows,
+                    document_type="galvanized",
+                    category="revestimento",
+                    label=coating,
+                    price=price,
+                    thickness_label=thickness_label,
+                    thickness_mid=thickness_mid,
+                    raw_json={
+                        "document_type": "galvanized",
+                        "table": "revestimento",
+                        "thickness_label": thickness_label,
+                        "coating": coating,
+                        "extra_eur_t": price,
+                    },
+                )
 
-            extra = parse_number(raw_row[col_idx])
-            if extra is None:
+    if width_table:
+        header = width_table[1] if len(width_table) > 1 else []
+        widths_by_col = {idx: clean_cell(cell).replace(" ", "") for idx, cell in enumerate(header) if clean_cell(cell)}
+
+        for row in width_table[2:]:
+            _, _, thickness_mid, thickness_label = parse_range_label(row[0] if row else None)
+            if thickness_mid is None:
                 continue
-
-            key = (thickness_label, coating, extra)
-            if key in seen:
-                continue
-            seen.add(key)
-
-            extracted_grade = f"LUSO {document_type.upper()} {coating} | espessura {thickness_label}"
-
-            rows.append({
-                "extracted_grade": extracted_grade,
-                "extracted_thickness_mm": thickness_mid,
-                "extracted_width_mm": None,
-                "extracted_price_per_ton": extra,
-                "currency": "EUR",
-                "raw_text_snippet": f"{thickness_label} | {coating} | {extra}",
-                "raw_row_json": {
-                    "table_type": "coating_matrix",
-                    "document_type": document_type,
-                    "thickness_label": thickness_label,
-                    "thickness_min_mm": thickness_min,
-                    "thickness_max_mm": thickness_max,
-                    "thickness_mid_mm": thickness_mid,
-                    "coating": coating,
-                    "extra_eur_t": extra,
-                },
-            })
+            for col_idx, width_label in widths_by_col.items():
+                if col_idx >= len(row):
+                    continue
+                price = parse_number(row[col_idx])
+                width_mid, width_label_original = parse_width_range(width_label)
+                if price is None:
+                    continue
+                add_row(
+                    rows,
+                    document_type="galvanized",
+                    category="largura",
+                    label=width_label_original,
+                    price=price,
+                    thickness_label=thickness_label,
+                    thickness_mid=thickness_mid,
+                    width_label=width_label_original,
+                    width_mid=width_mid,
+                    raw_json={
+                        "document_type": "galvanized",
+                        "table": "largura",
+                        "thickness_label": thickness_label,
+                        "width_label": width_label_original,
+                        "extra_eur_t": price,
+                    },
+                )
 
     return rows
 
 
-def extract_simple_extra_rows(
-    table: list[list[object]],
-    document_type: str,
-) -> list[dict]:
+def extract_dk2_rows(tables: list[list[list[str | None]]]) -> list[dict]:
     rows: list[dict] = []
-    seen: set[tuple[str, float]] = set()
 
-    skip_tokens = {
-        "ESPESSURA", "LARGURA", "REVESTIMENTO", "PRECO", "PRECOS",
-        "LISTA", "TABELA", "EUR", "TON", "TONELADA", "MM"
-    }
-
-    for raw_row in table:
-        cells = [clean_cell(cell) for cell in raw_row if clean_cell(cell)]
-        if len(cells) < 2:
+    for table in tables:
+        if not table:
             continue
 
-        normalized_cells = [normalize_text(cell) for cell in cells]
-        if any(cell in skip_tokens for cell in normalized_cells):
+        if has_header_terms(table, "espessura", "extras") and len(table[0]) >= 2:
+            for row in table[2:]:
+                if not row or len(row) < 2:
+                    continue
+                _, _, thickness_mid, thickness_label = parse_range_label(row[0])
+                price = parse_number(row[1])
+                if thickness_mid is None or price is None:
+                    continue
+                add_row(
+                    rows,
+                    document_type="pickled",
+                    category="espessura",
+                    label="extra",
+                    price=price,
+                    thickness_label=thickness_label,
+                    thickness_mid=thickness_mid,
+                    raw_json={
+                        "document_type": "pickled",
+                        "table": "espessura_extra",
+                        "thickness_label": thickness_label,
+                        "extra_eur_t": price,
+                    },
+                )
+
+        elif has_header_terms(table, "qualidade", "extras") and len(table[0]) >= 2:
+            for row in table[1:]:
+                if not row or len(row) < 2:
+                    continue
+                quality = clean_cell(row[0]).upper()
+                price = parse_number(row[1])
+                if not quality or price is None:
+                    continue
+                add_row(
+                    rows,
+                    document_type="pickled",
+                    category="qualidade",
+                    label=quality,
+                    price=price,
+                    raw_json={
+                        "document_type": "pickled",
+                        "table": "quality_extra",
+                        "quality": quality,
+                        "extra_eur_t": price,
+                    },
+                )
+
+        elif has_header_terms(table, "espessura", "largura"):
+            header = table[1] if len(table) > 1 else []
+            widths_by_col = {idx: clean_cell(cell) for idx, cell in enumerate(header) if clean_cell(cell)}
+            for row in table[2:]:
+                if not row:
+                    continue
+                _, _, thickness_mid, thickness_label = parse_range_label(row[0])
+                if thickness_mid is None:
+                    continue
+                for col_idx, width_label in widths_by_col.items():
+                    if col_idx >= len(row):
+                        continue
+                    price = parse_number(row[col_idx])
+                    width_mid = parse_number(width_label)
+                    if price is None:
+                        continue
+                    add_row(
+                        rows,
+                        document_type="pickled",
+                        category="largura",
+                        label=width_label,
+                        price=price,
+                        thickness_label=thickness_label,
+                        thickness_mid=thickness_mid,
+                        width_label=width_label,
+                        width_mid=width_mid,
+                        raw_json={
+                            "document_type": "pickled",
+                            "table": "width_extra",
+                            "thickness_label": thickness_label,
+                            "width_label": width_label,
+                            "extra_eur_t": price,
+                        },
+                    )
+
+    return rows
+
+
+def extract_lf2_rows(tables: list[list[list[str | None]]]) -> list[dict]:
+    rows: list[dict] = []
+
+    for table in tables:
+        if not table:
             continue
 
-        numeric_positions = [idx for idx, cell in enumerate(cells) if parse_number(cell) is not None]
-        if not numeric_positions:
-            continue
+        if has_header_terms(table, "qualidade", "extra") and len(table[0]) >= 2:
+            for row in table[1:]:
+                if not row or len(row) < 2:
+                    continue
+                quality = clean_cell(row[0]).upper()
+                price = parse_number(row[1])
+                if not quality or price is None:
+                    continue
+                add_row(
+                    rows,
+                    document_type="cold_rolled",
+                    category="qualidade",
+                    label=quality,
+                    price=price,
+                    raw_json={
+                        "document_type": "cold_rolled",
+                        "table": "quality_extra",
+                        "quality": quality,
+                        "extra_eur_t": price,
+                    },
+                )
 
-        # Evitar filas puramente matriciales. Aquí queremos filas descriptivas + último número.
-        if len(numeric_positions) >= max(2, len(cells) - 1):
-            continue
-
-        price_idx = numeric_positions[-1]
-        price = parse_number(cells[price_idx])
-        if price is None:
-            continue
-
-        description_parts = [cells[i] for i in range(0, price_idx) if parse_number(cells[i]) is None]
-        description = " ".join(description_parts).strip()
-        description_norm = normalize_text(description)
-
-        if not description or len(description_norm) < 2:
-            continue
-
-        key = (description_norm, price)
-        if key in seen:
-            continue
-        seen.add(key)
-
-        rows.append({
-            "extracted_grade": f"LUSO {document_type.upper()} | {description}",
-            "extracted_thickness_mm": None,
-            "extracted_width_mm": None,
-            "extracted_price_per_ton": price,
-            "currency": "EUR",
-            "raw_text_snippet": " | ".join(cells),
-            "raw_row_json": {
-                "table_type": "simple_extra",
-                "document_type": document_type,
-                "description": description,
-                "extra_eur_t": price,
-                "cells": cells,
-            },
-        })
+        elif has_header_terms(table, "espessura", "largura"):
+            width_labels = ["900-1099", "1100-1299"]
+            for row in table:
+                if not row or len(row) < 3:
+                    continue
+                _, _, thickness_mid, thickness_label = parse_range_label(row[0])
+                if thickness_mid is None:
+                    continue
+                for col_idx, width_label in zip([1, 2], width_labels):
+                    if col_idx >= len(row):
+                        continue
+                    price = parse_number(row[col_idx])
+                    if price is None:
+                        continue
+                    width_mid, width_label_original = parse_width_range(width_label)
+                    add_row(
+                        rows,
+                        document_type="cold_rolled",
+                        category="largura",
+                        label=width_label_original,
+                        price=price,
+                        thickness_label=thickness_label,
+                        thickness_mid=thickness_mid,
+                        width_label=width_label_original,
+                        width_mid=width_mid,
+                        raw_json={
+                            "document_type": "cold_rolled",
+                            "table": "width_extra",
+                            "thickness_label": thickness_label,
+                            "width_label": width_label_original,
+                            "extra_eur_t": price,
+                        },
+                    )
 
     return rows
 
 
 def extract_luso_rows(pdf_path: Path, tables: list[list[list[str | None]]]) -> list[dict]:
-    document_type = detect_luso_document_type(pdf_path, tables)
-
-    rows: list[dict] = []
-    seen: set[tuple[str, float, float | None]] = set()
-
-    for table in tables:
-        for row in extract_matrix_rows(table, document_type):
-            key = (
-                row["extracted_grade"],
-                row["extracted_price_per_ton"],
-                row["extracted_thickness_mm"],
-            )
-            if key not in seen:
-                seen.add(key)
-                rows.append(row)
-
-    # Fallback/complemento útil para DK2 y tablas de extras simples.
-    for table in tables:
-        for row in extract_simple_extra_rows(table, document_type):
-            key = (
-                row["extracted_grade"],
-                row["extracted_price_per_ton"],
-                row["extracted_thickness_mm"],
-            )
-            if key not in seen:
-                seen.add(key)
-                rows.append(row)
-
-    return rows
+    doc_type = detect_document_type(pdf_path, tables)
+    if doc_type == "galvanized":
+        return extract_cg2_rows(tables)
+    if doc_type == "pickled":
+        return extract_dk2_rows(tables)
+    if doc_type == "cold_rolled":
+        return extract_lf2_rows(tables)
+    raise RuntimeError(f"No se pudo detectar el tipo de documento Luso para: {pdf_path.name}")
 
 
 def insert_staging_quotes(
@@ -381,17 +463,21 @@ def insert_staging_quotes(
     supplier_name: str,
     rows: list[dict],
 ) -> None:
-    conn.execute("""
+    conn.execute(
+        """
         DELETE FROM stg_supplier_quotes
         WHERE supplier_document_id = ?
           AND source_type = 'pdf'
           AND supplier_code = ?
-    """, (document_id, supplier_code))
+        """,
+        (document_id, supplier_code),
+    )
 
     created_at = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
     for row in rows:
-        conn.execute("""
+        conn.execute(
+            """
             INSERT INTO stg_supplier_quotes (
                 supplier_document_id,
                 source_type,
@@ -414,27 +500,29 @@ def insert_staging_quotes(
                 created_at
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            document_id,
-            "pdf",
-            supplier_code,
-            supplier_name,
-            row["extracted_grade"],
-            row["extracted_thickness_mm"],
-            row["extracted_width_mm"],
-            row["extracted_price_per_ton"],
-            row["currency"],
-            None,
-            None,
-            None,
-            json.dumps(row["raw_row_json"], ensure_ascii=False),
-            row["raw_text_snippet"],
-            None,
-            "pending",
-            1,
-            "AUTO_EXTRACTED_FROM_PDF|LUSO_2014|NEEDS_REVIEW",
-            created_at,
-        ))
+            """,
+            (
+                document_id,
+                "pdf",
+                supplier_code,
+                supplier_name,
+                row["extracted_grade"],
+                row["extracted_thickness_mm"],
+                row["extracted_width_mm"],
+                row["extracted_price_per_ton"],
+                row["currency"],
+                None,
+                None,
+                None,
+                json.dumps(row["raw_row_json"], ensure_ascii=False),
+                row["raw_text_snippet"],
+                None,
+                "pending",
+                1,
+                "AUTO_EXTRACTED_FROM_PDF|LUSO_2014|NEEDS_REVIEW",
+                created_at,
+            ),
+        )
 
 
 def main() -> None:
@@ -443,7 +531,6 @@ def main() -> None:
 
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
-
         raw_text = extract_all_text(pdf_path)
         tables = extract_tables(pdf_path)
 
@@ -467,11 +554,14 @@ def main() -> None:
             rows=extracted_rows,
         )
 
-        conn.execute("""
+        conn.execute(
+            """
             UPDATE stg_supplier_documents
             SET n_quotes_extracted = ?
             WHERE id = ?
-        """, (len(extracted_rows), document_id))
+            """,
+            (len(extracted_rows), document_id),
+        )
 
         conn.commit()
 
@@ -483,12 +573,15 @@ def main() -> None:
     if extracted_rows:
         print("Primeras 10 filas extraídas:")
         for row in extracted_rows[:10]:
-            print({
-                "extracted_grade": row["extracted_grade"],
-                "extracted_thickness_mm": row["extracted_thickness_mm"],
-                "price_per_ton": row["extracted_price_per_ton"],
-                "raw_text_snippet": row["raw_text_snippet"],
-            })
+            print(
+                {
+                    "extracted_grade": row["extracted_grade"],
+                    "extracted_thickness_mm": row["extracted_thickness_mm"],
+                    "extracted_width_mm": row["extracted_width_mm"],
+                    "price_per_ton": row["extracted_price_per_ton"],
+                    "raw_text_snippet": row["raw_text_snippet"],
+                }
+            )
 
 
 if __name__ == "__main__":
