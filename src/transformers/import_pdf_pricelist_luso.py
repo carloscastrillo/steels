@@ -8,7 +8,7 @@ import re
 import sqlite3
 
 import pdfplumber
-
+from parser_utils import parse_price, parse_range_midpoint
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DB_PATH = BASE_DIR / "db" / "steel_mvp.db"
@@ -115,30 +115,11 @@ def normalize_decimal_text(text: str) -> str:
 
 
 def parse_number(value: object) -> float | None:
-    text = clean_cell(value)
-    if not text or text in {"-", "—"}:
-        return None
-    normalized = normalize_decimal_text(text)
-    match = re.search(r"-?\d+(?:\.\d+)?", normalized)
-    if not match:
-        return None
-    try:
-        return float(match.group(0))
-    except ValueError:
-        return None
+    return parse_price(value)
 
 
 def parse_range_label(value: object) -> tuple[float | None, float | None, float | None, str]:
-    label = clean_cell(value)
-    normalized = normalize_decimal_text(label)
-    nums = [float(x) for x in re.findall(r"\d+(?:\.\d+)?", normalized)]
-    if len(nums) >= 2:
-        lo, hi = nums[0], nums[1]
-        return lo, hi, (lo + hi) / 2, label
-    if len(nums) == 1:
-        return nums[0], nums[0], nums[0], label
-    return None, None, None, label
-
+    return parse_range_midpoint(value, decimals=3)
 
 def parse_width_range(value: object) -> tuple[float | None, str]:
     _, _, mid, label = parse_range_label(value)

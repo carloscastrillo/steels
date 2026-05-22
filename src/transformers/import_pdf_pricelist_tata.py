@@ -8,6 +8,7 @@ import re
 import sqlite3
 
 import pdfplumber
+from parser_utils import parse_price
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -143,7 +144,9 @@ def extract_tata_grade_price_rows(raw_text: str) -> list[dict]:
         if m1:
             grade_1 = m1.group(1).strip()
             grade_2 = m1.group(2).strip()
-            price = float(m1.group(3).replace(",", "."))
+            price = parse_price(m1.group(3))
+            if price is None:
+                continue
             key = (f"{grade_1} | {grade_2}", price)
             if key not in seen:
                 seen.add(key)
@@ -158,7 +161,9 @@ def extract_tata_grade_price_rows(raw_text: str) -> list[dict]:
         m2 = re.match(r"^([A-Z0-9+\-]+)\s+(-?\d+(?:[.,]\d+)?)$", line)
         if m2:
             grade = m2.group(1).strip()
-            price = float(m2.group(2).replace(",", "."))
+            price = parse_price(m2.group(2))
+            if price is None:
+                continue
             key = (grade, price)
             if key not in seen:
                 seen.add(key)

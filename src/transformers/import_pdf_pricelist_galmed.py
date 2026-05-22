@@ -8,7 +8,7 @@ import re
 import sqlite3
 
 import pdfplumber
-
+from parser_utils import parse_price, parse_range_midpoint
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DB_PATH = BASE_DIR / "db" / "steel_mvp.db"
@@ -155,36 +155,11 @@ def normalize_coating_raw(header: object) -> tuple[str | None, str, bool]:
 
 
 def parse_number(value: object) -> float | None:
-    text = clean_cell(value)
-    if not text or text in {"-", "—"}:
-        return None
-
-    text = text.replace(".", "").replace(",", ".")
-    match = re.search(r"-?\d+(?:\.\d+)?", text)
-    if not match:
-        return None
-
-    try:
-        return float(match.group(0))
-    except ValueError:
-        return None
+    return parse_price(value)
 
 
 def parse_thickness_range(value: object) -> tuple[float | None, float | None, float | None, str]:
-    text = clean_cell(value)
-    normalized = text.replace(",", ".")
-
-    nums = [float(x) for x in re.findall(r"\d+(?:\.\d+)?", normalized)]
-    if len(nums) >= 2:
-        lo, hi = nums[0], nums[1]
-        mid = round((lo + hi) / 2, 3)
-        return round(lo, 3), round(hi, 3), mid, text
-
-    if len(nums) == 1:
-        val = round(nums[0], 3)
-        return val, val, val, text
-
-    return None, None, None, text
+    return parse_range_midpoint(value, decimals=3)
 
 
 def looks_like_galmed_main_table(table: list[list[object]]) -> bool:

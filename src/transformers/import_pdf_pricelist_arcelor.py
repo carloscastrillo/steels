@@ -8,7 +8,7 @@ import re
 import sqlite3
 
 import pdfplumber
-
+from parser_utils import parse_price
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DB_PATH = BASE_DIR / "db" / "steel_mvp.db"
@@ -117,7 +117,9 @@ def extract_grade_extra_rows(raw_text: str) -> list[dict]:
 
         grade_1 = match.group(1).strip()
         grade_2 = match.group(2).strip()
-        price = float(match.group(3))
+        price = parse_price(match.group(3))
+        if price is None:
+            continue
 
         key = (grade_1, grade_2, price)
         if key in seen:
