@@ -112,6 +112,47 @@ def _build_import_pdf_am_like_args() -> list[str]:
     args += ["--supplier-name", supplier_name or "ArcelorMittal"]
     return args
 
+def _build_galmed_pdf_import_args() -> list[str]:
+    print()
+    print("Importar PDF Galmed")
+    print("-" * 50)
+
+    pdfs_dir = BASE_DIR / "data" / "raw" / "pdfs"
+    pdfs = sorted(pdfs_dir.glob("*.pdf"))
+
+    galmed_pdfs = [
+        p for p in pdfs
+        if "galmed" in p.name.lower()
+    ]
+
+    candidates = galmed_pdfs or pdfs
+
+    if not candidates:
+        pdf_path = input("Ruta del PDF: ").strip()
+    else:
+        print("PDFs detectados:")
+        for idx, pdf in enumerate(candidates, start=1):
+            print(f"  {idx}. {pdf.name}")
+        print("  0. Escribir ruta manual")
+
+        raw = input("Elige PDF por número [1]: ").strip() or "1"
+
+        if raw == "0":
+            pdf_path = input("Ruta del PDF: ").strip()
+        else:
+            selected = candidates[int(raw) - 1]
+            pdf_path = str(selected.relative_to(BASE_DIR))
+
+    supplier_code = input("Supplier code [GALMED]: ").strip() or "GALMED"
+    supplier_name = input("Supplier name [Galmed]: ").strip() or "Galmed"
+
+    return [
+        "--pdf", pdf_path,
+        "--supplier-code", supplier_code,
+        "--supplier-name", supplier_name,
+    ]
+
+
 MENU_OPTIONS = {
     # --- Sourcing requests ---
     "1": {
@@ -215,6 +256,12 @@ MENU_OPTIONS = {
         "label": "Ver estado de staging de proveedor",
         "script": TRANSFORMERS_DIR / "status_supplier_staging.py",
         "group": "supplier_docs",
+    },
+        "19": {
+        "label":   "Importar PDF Galmed",
+        "script":  TRANSFORMERS_DIR / "import_pdf_pricelist_galmed.py",
+        "group":   "supplier_docs",
+        "args_fn": _build_galmed_pdf_import_args,
     },
 }
 

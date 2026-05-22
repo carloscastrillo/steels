@@ -1,7 +1,7 @@
 -- ============================================================
 -- HIERROS Steel MVP — Schema canónico
 -- Generado desde: C:\Users\carca\OneDrive\CARLOS\AA PRACTICAS\steel\db\steel_mvp.db
--- Última generación: 2026-05-21 12:58:59
+-- Última generación: 2026-05-22 10:22:00
 --
 -- Este fichero debe reflejar la estructura REAL de steel_mvp.db.
 -- Capas: staging SAP, staging BOSS, staging proveedor, core operativo y legacy.
@@ -186,7 +186,7 @@ CREATE TABLE IF NOT EXISTS stg_supplier_quotes (
         matched_sourcing_request_id INTEGER,
         review_status TEXT NOT NULL DEFAULT 'pending',   -- pending | approved | rejected
         notes TEXT,
-        created_at TEXT NOT NULL,
+        created_at TEXT NOT NULL, needs_manual_review INTEGER DEFAULT 1,
 
         FOREIGN KEY (supplier_document_id) REFERENCES stg_supplier_documents(id),
         FOREIGN KEY (matched_sourcing_request_id) REFERENCES sourcing_requests(id)
