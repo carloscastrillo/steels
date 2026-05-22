@@ -116,17 +116,42 @@ def clean_cell(value: object) -> str:
     return " ".join(str(value).replace("\n", " ").strip().split())
 
 
-def normalize_coating(header: str) -> str | None:
-    cleaned = clean_cell(header).upper()
-    match = re.search(r"\bZ\s*([0-9]{2,3})\b", cleaned)
-    if match:
-        return f"Z{match.group(1)}"
+def normalize_coating_raw(header: object) -> tuple[str | None, str, bool]:
+    """
+    Conserva la cabecera original y genera un coating normalizado único.
 
-    match = re.search(r"\bZM\s*([0-9]{2,3})\b", cleaned)
-    if match:
-        return f"ZM{match.group(1)}"
+    Ejemplos:
+        "Z70"              -> ("Z70", "Z70", False)
+        "Z120\\nZ70/50"    -> ("Z120__Z70-50", "Z120\\nZ70/50", True)
+        "Z140 Z100/40"     -> ("Z140__Z100-40", "Z140 Z100/40", True)
 
-    return None
+    El objetivo es NO colapsar recubrimientos diferenciales como Z70/50 en Z70.
+    """
+    if header is None:
+        return None, "", False
+
+    raw = str(header).strip()
+    if not raw:
+        return None, "", False
+
+    compact = " ".join(raw.replace("\r", "\n").split())
+    upper = compact.upper()
+
+    tokens = re.findall(r"\bZ\s*\d{2,3}(?:\s*/\s*\d{1,3})?\b|\bZM\s*\d{2,3}\b", upper)
+
+    cleaned_tokens: list[str] = []
+    for token in tokens:
+        cleaned = token.replace(" ", "").replace("/", "-")
+        if cleaned not in cleaned_tokens:
+            cleaned_tokens.append(cleaned)
+
+    if not cleaned_tokens:
+        return None, raw, False
+
+    is_compound = len(cleaned_tokens) > 1 or "\n" in raw or "/" in raw
+
+    normalized = "__".join(cleaned_tokens)
+    return normalized, raw, is_compound
 
 
 def parse_number(value: object) -> float | None:
@@ -152,10 +177,12 @@ def parse_thickness_range(value: object) -> tuple[float | None, float | None, fl
     nums = [float(x) for x in re.findall(r"\d+(?:\.\d+)?", normalized)]
     if len(nums) >= 2:
         lo, hi = nums[0], nums[1]
-        return lo, hi, (lo + hi) / 2, text
+        mid = round((lo + hi) / 2, 3)
+        return round(lo, 3), round(hi, 3), mid, text
 
     if len(nums) == 1:
-        return nums[0], nums[0], nums[0], text
+        val = round(nums[0], 3)
+        return val, val, val, text
 
     return None, None, None, text
 
@@ -186,10 +213,16 @@ def extract_galmed_rows(tables: list[list[list[str | None]]]) -> list[dict]:
     header = main_table[0]
     coatings_by_col: dict[int, str] = {}
 
+    coating_meta_by_col: dict[int, dict] = {}
+
     for idx, cell in enumerate(header):
-        coating = normalize_coating(clean_cell(cell))
+        coating, coating_raw, is_compound = normalize_coating_raw(cell)
         if coating:
-            coatings_by_col[idx] = coating
+            coating_meta_by_col[idx] = {
+                "coating": coating,
+                "coating_raw": coating_raw,
+                "is_compound": is_compound,
+            }
 
     rows: list[dict] = []
     seen: set[tuple[str, str, float]] = set()
@@ -203,28 +236,39 @@ def extract_galmed_rows(tables: list[list[list[str | None]]]) -> list[dict]:
         if thickness_mid is None:
             continue
 
-        for col_idx, coating in coatings_by_col.items():
+        for col_idx, meta in coating_meta_by_col.items():
             if col_idx >= len(raw_row):
                 continue
+
+            coating = meta["coating"]
+            coating_raw = meta["coating_raw"]
+            is_compound = meta["is_compound"]
 
             extra = parse_number(raw_row[col_idx])
             if extra is None:
                 continue
 
-            key = (thickness_label, coating, extra)
+            extracted_grade = f"GALMED {coating} | espesor {thickness_label}"
+
+            key = (extracted_grade, thickness_mid)
             if key in seen:
                 continue
             seen.add(key)
 
-            extracted_grade = f"GALMED {coating} | espesor {thickness_label}"
+            notes_flags = ["AUTO_EXTRACTED_FROM_PDF", "GALMED_ZINC_MATRIX", "NEEDS_REVIEW"]
+            if is_compound:
+                notes_flags.append("COMPOUND_COATING")
 
             rows.append({
                 "extracted_grade": extracted_grade,
+                "coating_raw": coating_raw,
+                "is_compound": is_compound,
                 "extracted_thickness_mm": thickness_mid,
                 "extracted_width_mm": None,
                 "extracted_price_per_ton": extra,
                 "currency": "EUR",
-                "raw_text_snippet": f"{thickness_label} | {coating} | {extra}",
+                "notes": "|".join(notes_flags),
+                "raw_text_snippet": f"{thickness_label} | {coating_raw} | {extra}",
                 "raw_row_json": {
                     "table": "zinc_main_matrix",
                     "thickness_label": thickness_label,
@@ -232,6 +276,8 @@ def extract_galmed_rows(tables: list[list[list[str | None]]]) -> list[dict]:
                     "thickness_max_mm": thickness_max,
                     "thickness_mid_mm": thickness_mid,
                     "coating": coating,
+                    "coating_raw": coating_raw,
+                    "is_compound": is_compound,
                     "extra_eur_t": extra,
                 },
             })
@@ -263,6 +309,7 @@ def insert_staging_quotes(
                 supplier_code,
                 supplier_name,
                 extracted_grade,
+                coating_raw,
                 extracted_thickness_mm,
                 extracted_width_mm,
                 extracted_price_per_ton,
@@ -278,13 +325,14 @@ def insert_staging_quotes(
                 notes,
                 created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             document_id,
             "pdf",
             supplier_code,
             supplier_name,
             row["extracted_grade"],
+            row["coating_raw"],            
             row["extracted_thickness_mm"],
             row["extracted_width_mm"],
             row["extracted_price_per_ton"],
@@ -297,7 +345,7 @@ def insert_staging_quotes(
             None,
             "pending",
             1,
-            "AUTO_EXTRACTED_FROM_PDF|GALMED_ZINC_MATRIX|NEEDS_REVIEW",
+            row["notes"],
             created_at,
         ))
 
