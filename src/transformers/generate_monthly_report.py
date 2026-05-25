@@ -393,6 +393,162 @@ def build_notes_sheet(wb: Workbook, month: str):
 
     autofit_like(ws)
 
+def build_supplier_staging_sheet(conn, wb):
+    ws = wb.create_sheet("Proveedor Staging")
+
+    ws["A1"] = "STAGING DE PROVEEDORES"
+    ws["A1"].font = Font(bold=True, size=14)
+    ws["A1"].fill = SECTION_FILL
+
+    # ------------------------------------------------------------------
+    # Tabla 1 — Resumen por proveedor
+    # ------------------------------------------------------------------
+    ws["A3"] = "Resumen por proveedor"
+    ws["A3"].font = Font(bold=True)
+    ws["A3"].fill = SECTION_FILL
+
+    summary_headers = [
+        "Proveedor",
+        "PDFs importados",
+        "Quotes extraídas",
+        "Aprobadas",
+        "Rechazadas",
+        "Pendientes",
+    ]
+
+    header_row = 5
+    for col_idx, header in enumerate(summary_headers, start=1):
+        ws.cell(row=header_row, column=col_idx, value=header)
+
+    style_header(ws, header_row, len(summary_headers))
+
+    summary_rows = conn.execute("""
+        SELECT
+            sq.supplier_code,
+            COUNT(DISTINCT sd.id) AS pdfs_imported,
+            COUNT(sq.id) AS quotes_extracted,
+            SUM(CASE WHEN sq.review_status = 'approved' THEN 1 ELSE 0 END) AS approved,
+            SUM(CASE WHEN sq.review_status = 'rejected' THEN 1 ELSE 0 END) AS rejected,
+            SUM(CASE WHEN COALESCE(sq.review_status, 'pending') = 'pending' THEN 1 ELSE 0 END) AS pending
+        FROM stg_supplier_quotes sq
+        LEFT JOIN stg_supplier_documents sd
+            ON sd.id = sq.supplier_document_id
+        GROUP BY sq.supplier_code
+        ORDER BY sq.supplier_code
+    """).fetchall()
+
+    row = header_row + 1
+    for item in summary_rows:
+        ws.cell(row=row, column=1, value=item["supplier_code"])
+        ws.cell(row=row, column=2, value=item["pdfs_imported"])
+        ws.cell(row=row, column=3, value=item["quotes_extracted"])
+        ws.cell(row=row, column=4, value=item["approved"])
+        ws.cell(row=row, column=5, value=item["rejected"])
+        ws.cell(row=row, column=6, value=item["pending"])
+        row += 1
+
+    if row > header_row + 1:
+        style_data_block(ws, header_row + 1, row - 1, len(summary_headers))
+
+    # ------------------------------------------------------------------
+    # Tabla 2 — Quotes aprobadas con match asignado
+    # ------------------------------------------------------------------
+    table2_start = row + 3
+
+    ws.cell(row=table2_start, column=1, value="Quotes aprobadas con request asignada")
+    ws.cell(row=table2_start, column=1).font = Font(bold=True)
+    ws.cell(row=table2_start, column=1).fill = SECTION_FILL
+
+    approved_headers = [
+        "Proveedor",
+        "Documento",
+        "Grade extraído",
+        "Coating raw",
+        "Espesor",
+        "Ancho",
+        "Precio €/t",
+        "Request asignada",
+        "Referencia",
+        "Cliente",
+        "Producto",
+        "Grade request",
+        "Espesor request",
+        "Ancho request",
+        "Toneladas",
+    ]
+
+    approved_header_row = table2_start + 2
+
+    for col_idx, header in enumerate(approved_headers, start=1):
+        ws.cell(row=approved_header_row, column=col_idx, value=header)
+
+    style_header(ws, approved_header_row, len(approved_headers))
+
+    approved_rows = conn.execute("""
+        SELECT
+            sq.supplier_code,
+            COALESCE(sd.file_name, '') AS file_name,
+            sq.extracted_grade,
+            sq.coating_raw,
+            sq.extracted_thickness_mm,
+            sq.extracted_width_mm,
+            sq.extracted_price_per_ton,
+            sq.matched_sourcing_request_id,
+            sr.our_ref,
+            c.name AS client_name,
+            rs.product,
+            rs.grade AS request_grade,
+            rs.thickness_mm AS request_thickness_mm,
+            rs.width_mm AS request_width_mm,
+            sr.requested_tons
+        FROM stg_supplier_quotes sq
+        LEFT JOIN stg_supplier_documents sd
+            ON sd.id = sq.supplier_document_id
+        LEFT JOIN sourcing_requests sr
+            ON sr.id = sq.matched_sourcing_request_id
+        LEFT JOIN clients c
+            ON c.id = sr.client_id
+        LEFT JOIN request_specs rs
+            ON rs.id = sr.request_spec_id
+        WHERE sq.review_status = 'approved'
+          AND sq.matched_sourcing_request_id IS NOT NULL
+        ORDER BY sq.supplier_code, sq.id
+    """).fetchall()
+
+    row = approved_header_row + 1
+
+    for item in approved_rows:
+        ws.cell(row=row, column=1, value=item["supplier_code"])
+        ws.cell(row=row, column=2, value=item["file_name"])
+        ws.cell(row=row, column=3, value=item["extracted_grade"])
+        ws.cell(row=row, column=4, value=item["coating_raw"])
+        ws.cell(row=row, column=5, value=item["extracted_thickness_mm"])
+        ws.cell(row=row, column=6, value=item["extracted_width_mm"])
+        ws.cell(row=row, column=7, value=item["extracted_price_per_ton"])
+        ws.cell(row=row, column=8, value=item["matched_sourcing_request_id"])
+        ws.cell(row=row, column=9, value=item["our_ref"])
+        ws.cell(row=row, column=10, value=item["client_name"])
+        ws.cell(row=row, column=11, value=item["product"])
+        ws.cell(row=row, column=12, value=item["request_grade"])
+        ws.cell(row=row, column=13, value=item["request_thickness_mm"])
+        ws.cell(row=row, column=14, value=item["request_width_mm"])
+        ws.cell(row=row, column=15, value=item["requested_tons"])
+        row += 1
+
+    if row > approved_header_row + 1:
+        style_data_block(ws, approved_header_row + 1, row - 1, len(approved_headers))
+
+        for r in range(approved_header_row + 1, row):
+            ws.cell(row=r, column=5).number_format = "0.000"
+            ws.cell(row=r, column=6).number_format = "0.000"
+            ws.cell(row=r, column=7).number_format = "#,##0.00"
+            ws.cell(row=r, column=13).number_format = "0.000"
+            ws.cell(row=r, column=14).number_format = "0.000"
+            ws.cell(row=r, column=15).number_format = "#,##0.00"
+
+    ws.freeze_panes = "A6"
+    autofit_like(ws)
+
 
 def main():
     args = parse_args()
@@ -415,6 +571,7 @@ def main():
     build_notes_sheet(wb, args.month)
 
     output_path = EXPORTS_DIR / f"monthly_report_{args.month}.xlsx"
+    build_supplier_staging_sheet(conn, wb)
     wb.save(output_path)
 
     print("Informe mensual generado correctamente.")
