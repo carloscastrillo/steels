@@ -15,11 +15,12 @@ import sys
 from pathlib import Path
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-SRC_DIR = BASE_DIR / "src"
-TRANSFORMERS_DIR = SRC_DIR / "transformers"
-PIPELINE_DIR = SRC_DIR / "pipeline"
-RAW_PDFS_DIR = BASE_DIR / "data" / "raw" / "pdfs"
+BASE_DIR          = Path(__file__).resolve().parent.parent
+SRC_DIR           = BASE_DIR / "src"
+TRANSFORMERS_DIR  = SRC_DIR / "transformers"
+IMPORTERS_DIR     = SRC_DIR / "importers"
+PIPELINE_DIR      = SRC_DIR / "pipeline"
+RAW_PDFS_DIR      = BASE_DIR / "data" / "raw" / "pdfs"
 
 
 # ---------------------------------------------------------------------------
@@ -152,6 +153,35 @@ def _build_galmed_pdf_import_args() -> list[str]:
         "--supplier-name", supplier_name,
     ]
 
+def _build_supplier_staging_review_import_args() -> list[str]:
+    print()
+    print("Importar revisión staging proveedor desde Excel")
+    print("-" * 50)
+
+    exports_dir = BASE_DIR / "exports"
+    files = sorted(
+        exports_dir.glob("supplier_staging_report_*.xlsx"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+
+    if not files:
+        file_path = input("Ruta del Excel revisado: ").strip()
+    else:
+        print("Excels de revisión detectados:")
+        for idx, file in enumerate(files, start=1):
+            print(f"  {idx}. {file.name}")
+        print("  0. Escribir ruta manual")
+
+        raw = input("Elige Excel por número [1]: ").strip() or "1"
+
+        if raw == "0":
+            file_path = input("Ruta del Excel revisado: ").strip()
+        else:
+            selected = files[int(raw) - 1]
+            file_path = str(selected.relative_to(BASE_DIR))
+
+    return ["--file", file_path]
 
 def _build_luso_pdf_import_args() -> list[str]:
     print()
@@ -226,6 +256,17 @@ MENU_OPTIONS = {
         "label": "Exportar sourcing report a Excel",
         "script": TRANSFORMERS_DIR / "export_sourcing_report_to_excel.py",
         "group": "reporting",
+    },
+    "22": {
+        "label":  "Exportar staging proveedor a Excel",
+        "script": TRANSFORMERS_DIR / "export_supplier_staging_report.py",
+        "group":  "reporting",
+    },
+    "23": {
+        "label":   "Importar revisión staging desde Excel",
+        "script":  IMPORTERS_DIR / "import_supplier_staging_review.py",
+        "group":   "reporting",
+        "args_fn": _build_supplier_staging_review_import_args,
     },
 
     # --- Sistema ---
