@@ -318,6 +318,11 @@ MENU_OPTIONS = {
         "script": TRANSFORMERS_DIR / "export_savings_report_to_excel.py",
         "group": "quotes_decisions",
     },
+        "25": {
+        "label":  "Matching quote-request semiautomático",
+        "script": TRANSFORMERS_DIR / "suggest_quote_matches.py",
+        "group":  "quotes_decisions",
+    },
 
     # --- Sprint 3: Supplier Documents ---
     "14": {
