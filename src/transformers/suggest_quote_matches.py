@@ -246,16 +246,18 @@ def score_match(quote: dict, request: dict) -> tuple[float, list[str]]:
     thickness_score, thickness_reason = score_thickness(quote, request)
     width_score, width_reason = score_width(quote, request)
 
-    score = grade_score + thickness_score + width_score
-
     reasons = [
         f"grade={grade_score:.0f}: {grade_reason}",
         f"thickness={thickness_score:.0f}: {thickness_reason}",
         f"width={width_score:.0f}: {width_reason}",
     ]
 
-    return score, reasons
+    if grade_score <= 0:
+        reasons.append("blocked: sin compatibilidad de coating/grade")
+        return 0.0, reasons
 
+    score = grade_score + thickness_score + width_score
+    return score, reasons
 
 def fetch_quote(conn: sqlite3.Connection, quote_id: int) -> sqlite3.Row | None:
     return conn.execute("""

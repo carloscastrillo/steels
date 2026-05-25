@@ -66,16 +66,32 @@ def parse_range_midpoint(value: Any, decimals: int = 3) -> tuple[float | None, f
     Extrae rango numérico y devuelve min, max, midpoint, etiqueta original.
 
     Ejemplos:
-        "0,37 - 0,39" -> (0.37, 0.39, 0.38, "0,37 - 0,39")
-        "1250"        -> (1250.0, 1250.0, 1250.0, "1250")
-        "1.250,50"    -> (1250.5, 1250.5, 1250.5, "1.250,50")
+        "0,37-0,39"    -> (0.37, 0.39, 0.38, "0,37-0,39")
+        "0,37 - 0,39"  -> (0.37, 0.39, 0.38, "0,37 - 0,39")
+        "1250"         -> (1250.0, 1250.0, 1250.0, "1250")
+        "1.250,50"     -> (1250.5, 1250.5, 1250.5, "1.250,50")
     """
     text = clean_text(value)
 
     if not text:
         return None, None, None, text
 
-    number_pattern = r"-?\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?|-?\d+(?:[.,]\d+)?"
+    range_match = re.search(
+        r"(\d+(?:[.,]\d+)?)\s*[-–—]\s*(\d+(?:[.,]\d+)?)",
+        text,
+    )
+
+    if range_match:
+        lo_parsed = parse_decimal(range_match.group(1), decimals=decimals)
+        hi_parsed = parse_decimal(range_match.group(2), decimals=decimals)
+
+        if lo_parsed is not None and hi_parsed is not None:
+            lo = round(lo_parsed, decimals)
+            hi = round(hi_parsed, decimals)
+            mid = round((lo + hi) / 2, decimals)
+            return lo, hi, mid, text
+
+    number_pattern = r"\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?|\d+(?:[.,]\d+)?"
     matches = re.findall(number_pattern, text)
 
     nums: list[float] = []
@@ -95,7 +111,6 @@ def parse_range_midpoint(value: Any, decimals: int = 3) -> tuple[float | None, f
         return val, val, val, text
 
     return None, None, None, text
-
 
 def round_optional(value: float | None, decimals: int) -> float | None:
     if value is None:
