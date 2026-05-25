@@ -1,7 +1,7 @@
 -- ============================================================
 -- HIERROS Steel MVP — Schema canónico
 -- Generado desde: C:\Users\carca\OneDrive\CARLOS\AA PRACTICAS\steel\db\steel_mvp.db
--- Última generación: 2026-05-25 21:00:30
+-- Última generación: 2026-05-26 01:15:18
 --
 -- Este fichero debe reflejar la estructura REAL de steel_mvp.db.
 -- Capas: staging SAP, staging BOSS, staging proveedor, core operativo y legacy.
