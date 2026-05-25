@@ -268,6 +268,11 @@ MENU_OPTIONS = {
         "group":   "reporting",
         "args_fn": _build_supplier_staging_review_import_args,
     },
+        "24": {
+        "label":  "Aprobar/rechazar staging por proveedor",
+        "script": TRANSFORMERS_DIR / "batch_review_supplier_staging.py",
+        "group":  "reporting",
+    },
 
     # --- Sistema ---
     "7": {
