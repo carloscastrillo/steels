@@ -246,6 +246,7 @@ def build_shortlist_sheet(conn, wb: Workbook):
         "requested_tons",
         "best_option_code",
         "best_supplier_name",
+        "best_source",
         "best_unit_cost",
         "best_total_cost",
         "second_option_code",
@@ -274,6 +275,7 @@ def build_shortlist_sheet(conn, wb: Workbook):
             sr.requested_tons,
             srs.best_option_code,
             srs.best_supplier_name,
+            srs.best_source,
             srs.best_unit_cost,
             srs.best_total_cost,
             srs.second_option_code,
@@ -298,7 +300,7 @@ def build_shortlist_sheet(conn, wb: Workbook):
     if end_row >= start_row:
         style_data_block(ws, start_row, end_row, len(headers))
 
-    currency_cols = [13, 14, 16, 18, 19, 20, 21]
+    currency_cols = [14, 15, 17, 19, 20, 21, 22]
     for col in currency_cols:
         for row in range(2, ws.max_row + 1):
             ws.cell(row=row, column=col).number_format = '#,##0.00'

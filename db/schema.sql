@@ -1,7 +1,7 @@
 -- ============================================================
 -- HIERROS Steel MVP — Schema canónico
 -- Generado desde: C:\Users\carca\OneDrive\CARLOS\AA PRACTICAS\steel\db\steel_mvp.db
--- Última generación: 2026-05-22 12:39:59
+-- Última generación: 2026-05-25 21:00:30
 --
 -- Este fichero debe reflejar la estructura REAL de steel_mvp.db.
 -- Capas: staging SAP, staging BOSS, staging proveedor, core operativo y legacy.
@@ -338,7 +338,7 @@ CREATE TABLE IF NOT EXISTS sourcing_request_shortlist (
         delta_best_vs_am_spot REAL,
         savings_total_vs_am_spot REAL,
 
-        created_at TEXT NOT NULL,
+        created_at TEXT NOT NULL, best_source TEXT DEFAULT 'BOSS',
         FOREIGN KEY (sourcing_request_id) REFERENCES sourcing_requests(id)
     );
 
