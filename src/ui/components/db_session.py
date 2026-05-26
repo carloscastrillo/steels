@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import streamlit as st
+from src.services.dashboard_service import dashboard_snapshot
 
 from src.services.matching_service import (
     assign_match,
@@ -27,6 +28,10 @@ from src.utils.db import connect, get_db_path
 def clear_cache() -> None:
     st.cache_data.clear()
 
+@st.cache_data(ttl=30)
+def load_dashboard_snapshot() -> dict:
+    with connect() as conn:
+        return dashboard_snapshot(conn)
 
 @st.cache_data(ttl=30)
 def get_database_path_text() -> str:
