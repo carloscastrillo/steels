@@ -3,14 +3,237 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 
+import pandas as pd
 import streamlit as st
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-sys.path.insert(0, str(BASE_DIR))
+sys.path.append(str(BASE_DIR))
+
+from src.ui.components.db_session import (
+    clear_cache,
+    load_supplier_options,
+    load_staging_quotes,
+    update_staging_review_status,
+)
+from src.ui.components.filters import (
+    coating_text_filter,
+    max_price_filter,
+    review_status_selector,
+    supplier_selector,
+    thickness_range_filter,
+)
 
 
 st.set_page_config(page_title="Revisión staging", page_icon="📋", layout="wide")
 
 st.title("Revisión staging")
-st.info("Pantalla pendiente: aquí se revisarán y aprobarán quotes de proveedor.")
+st.caption("Revisión masiva de quotes extraídas desde PDFs de proveedor.")
+
+suppliers = load_supplier_options()
+
+with st.sidebar:
+    st.header("Filtros")
+
+    supplier_code = supplier_selector(
+        suppliers,
+        label="Proveedor",
+        key="staging_supplier",
+    )
+
+    review_status = review_status_selector(
+        label="Estado",
+        key="staging_review_status",
+    )
+
+    coating = coating_text_filter(
+        label="Coating / grade contiene",
+        key="staging_coating",
+    )
+
+    thickness_min, thickness_max = thickness_range_filter(
+        label="Espesor mm",
+        min_value=0.0,
+        max_value=5.0,
+        default=(0.0, 5.0),
+        key="staging_thickness",
+    )
+
+    max_price = max_price_filter(
+        label="Precio máximo €/t",
+        key="staging_max_price",
+    )
+
+    st.divider()
+
+    if st.button("Limpiar caché", width="stretch"):
+        clear_cache()
+        st.rerun()
+
+
+quotes = load_staging_quotes(
+    supplier_code=supplier_code,
+    review_status=review_status,
+    coating=coating,
+    thickness_min=thickness_min,
+    thickness_max=thickness_max,
+    max_price=max_price,
+)
+
+df = pd.DataFrame(quotes)
+
+if df.empty:
+    st.info("No hay quotes que cumplan los filtros actuales.")
+    st.stop()
+
+pending_count = int((df["review_status"] == "pending").sum())
+approved_count = int((df["review_status"] == "approved").sum())
+rejected_count = int((df["review_status"] == "rejected").sum())
+matched_count = int(df["matched_request_id"].notna().sum())
+
+col1, col2, col3, col4, col5 = st.columns(5)
+col1.metric("Filtradas", len(df))
+col2.metric("Pendientes", pending_count)
+col3.metric("Aprobadas", approved_count)
+col4.metric("Rechazadas", rejected_count)
+col5.metric("Con match", matched_count)
+
+st.divider()
+
+display_df = df.copy()
+display_df.insert(0, "seleccionar", False)
+
+display_df["precio_eur_t"] = display_df["price_per_ton"].map(
+    lambda value: "" if pd.isna(value) else f"{float(value):,.2f} €/t"
+)
+
+display_columns = [
+    "seleccionar",
+    "id",
+    "supplier_code",
+    "document",
+    "coating_raw",
+    "extracted_grade",
+    "thickness_mm",
+    "width_mm",
+    "precio_eur_t",
+    "review_status",
+    "needs_manual_review",
+    "matched_request_id",
+]
+
+display_df = display_df[display_columns]
+
+st.subheader("Quotes filtradas")
+
+edited_df = st.data_editor(
+    display_df,
+    width="stretch",
+    hide_index=True,
+    disabled=[
+        "id",
+        "supplier_code",
+        "document",
+        "coating_raw",
+        "extracted_grade",
+        "thickness_mm",
+        "width_mm",
+        "precio_eur_t",
+        "review_status",
+        "needs_manual_review",
+        "matched_request_id",
+    ],
+    column_config={
+        "seleccionar": st.column_config.CheckboxColumn(
+            "Seleccionar",
+            help="Marca filas para aprobar o rechazar.",
+            default=False,
+        ),
+        "id": st.column_config.NumberColumn("ID", width="small"),
+        "supplier_code": st.column_config.TextColumn("Proveedor"),
+        "document": st.column_config.TextColumn("Documento"),
+        "coating_raw": st.column_config.TextColumn("Coating raw"),
+        "extracted_grade": st.column_config.TextColumn("Grade extraído"),
+        "thickness_mm": st.column_config.NumberColumn("Espesor", format="%.3f"),
+        "width_mm": st.column_config.NumberColumn("Ancho", format="%.3f"),
+        "precio_eur_t": st.column_config.TextColumn("Precio €/t"),
+        "review_status": st.column_config.TextColumn("Estado"),
+        "needs_manual_review": st.column_config.NumberColumn("Manual review"),
+        "matched_request_id": st.column_config.NumberColumn("Request match"),
+    },
+    key="staging_quotes_editor",
+)
+
+selected_ids = [
+    int(row["id"])
+    for _, row in edited_df.iterrows()
+    if bool(row["seleccionar"])
+]
+
+st.caption(f"Filas seleccionadas: {len(selected_ids)}")
+
+action_col1, action_col2, action_col3, action_col4 = st.columns([1, 1, 1.4, 1.4])
+
+with action_col1:
+    if st.button("Aprobar seleccionadas", disabled=not selected_ids, width="stretch"):
+        updated = update_staging_review_status(selected_ids, "approved")
+        st.success(f"Quotes aprobadas: {updated}")
+        st.rerun()
+
+with action_col2:
+    if st.button("Rechazar seleccionadas", disabled=not selected_ids, width="stretch"):
+        updated = update_staging_review_status(selected_ids, "rejected")
+        st.success(f"Quotes rechazadas: {updated}")
+        st.rerun()
+
+with action_col3:
+    if st.button("Aprobar todo el filtro", disabled=len(df) == 0, width="stretch"):
+        st.session_state["confirm_batch_action"] = "approved"
+
+with action_col4:
+    if st.button("Rechazar todo el filtro", disabled=len(df) == 0, width="stretch"):
+        st.session_state["confirm_batch_action"] = "rejected"
+
+
+batch_action = st.session_state.get("confirm_batch_action")
+
+if batch_action:
+    st.warning(
+        f"Vas a marcar {len(df)} quotes filtradas como '{batch_action}'. "
+        "Esta acción modifica la base de datos."
+    )
+
+    confirm_col1, confirm_col2 = st.columns([1, 1])
+
+    with confirm_col1:
+        if st.button("Confirmar acción por lote", type="primary", width="stretch"):
+            ids = [int(value) for value in df["id"].tolist()]
+            updated = update_staging_review_status(ids, batch_action)
+            st.session_state.pop("confirm_batch_action", None)
+            st.success(f"Quotes actualizadas: {updated}")
+            st.rerun()
+
+    with confirm_col2:
+        if st.button("Cancelar acción por lote", width="stretch"):
+            st.session_state.pop("confirm_batch_action", None)
+            st.rerun()
+
+st.divider()
+
+st.subheader("Detalle / raw snippet")
+
+detail_ids = df["id"].astype(int).tolist()
+selected_detail_id = st.selectbox(
+    "Selecciona una quote para ver el origen del dato",
+    detail_ids,
+    format_func=lambda value: f"Quote #{value}",
+)
+
+detail_row = df[df["id"] == selected_detail_id].iloc[0].to_dict()
+
+with st.expander("Ver raw snippet", expanded=True):
+    st.write("Proveedor:", detail_row.get("supplier_code"))
+    st.write("Documento:", detail_row.get("document"))
+    st.write("Grade extraído:", detail_row.get("extracted_grade"))
+    st.write("Coating raw:", detail_row.get("coating_raw"))
+    st.code(detail_row.get("raw_snippet") or "(sin raw snippet)", language="text")
