@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import streamlit as st
 
-from src.services.shortlist_service import list_shortlist
+from src.services.shortlist_service import (
+    get_request_quotes,
+    list_shortlist,
+    rebuild_shortlist,
+    register_decision,
+)
 from src.services.staging_service import (
     get_distinct_coatings,
     get_distinct_suppliers,
@@ -78,3 +83,37 @@ def load_shortlist_summary(only_with_alternatives: bool = False) -> list[dict]:
             only_with_alternatives=only_with_alternatives,
         )
         return [row.to_dict() for row in rows]
+
+
+@st.cache_data(ttl=30)
+def load_request_core_quotes(request_id: int) -> list[dict]:
+    with connect() as conn:
+        rows = get_request_quotes(conn, request_id)
+        return [row.to_dict() for row in rows]
+
+
+def rebuild_shortlist_action() -> int:
+    with connect() as conn:
+        total = rebuild_shortlist(conn)
+
+    clear_cache()
+    return total
+
+
+def register_decision_action(
+    request_id: int,
+    selected_quote_id: int,
+    reason: str,
+    decided_by: str,
+) -> int:
+    with connect() as conn:
+        decision_id = register_decision(
+            conn,
+            request_id=request_id,
+            selected_quote_id=selected_quote_id,
+            reason=reason,
+            decided_by=decided_by,
+        )
+
+    clear_cache()
+    return decision_id
