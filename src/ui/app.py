@@ -70,7 +70,7 @@ left, right = st.columns([2, 1])
 with left:
     st.markdown("### Estado staging por proveedor")
     if summary:
-        st.dataframe(summary, use_container_width=True, hide_index=True)
+        st.dataframe(summary, width="stretch", hide_index=True)
     else:
         st.info("No hay datos de staging todavía.")
 

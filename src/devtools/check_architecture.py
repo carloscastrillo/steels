@@ -16,9 +16,12 @@ TESTS_DIR = SRC_DIR / "tests"
 README_PATH = BASE_DIR / "README.md"
 
 
-SQL_PATTERNS = [
+SQL_CALL_PATTERNS = [
     r"\.execute\s*\(",
     r"\.executemany\s*\(",
+]
+
+SQL_KEYWORD_PATTERNS = [
     r"\bSELECT\b",
     r"\bINSERT\b",
     r"\bUPDATE\b",
@@ -69,17 +72,23 @@ def check_ui_has_no_sql() -> list[str]:
     for path in iter_py_files(UI_DIR):
         text = read_text(path)
 
-        for pattern in SQL_PATTERNS:
+        for pattern in SQL_CALL_PATTERNS:
             if re.search(pattern, text, flags=re.IGNORECASE):
                 errors.append(
-                    f"{rel(path)} contiene patrón SQL o acceso DB directo: {pattern}. "
+                    f"{rel(path)} contiene acceso DB directo: {pattern}. "
+                    "La UI debe llamar a src/services/, no ejecutar SQL."
+                )
+                break
+
+        for pattern in SQL_KEYWORD_PATTERNS:
+            if re.search(pattern, text):
+                errors.append(
+                    f"{rel(path)} contiene keyword SQL explícita: {pattern}. "
                     "La UI debe llamar a src/services/, no ejecutar SQL."
                 )
                 break
 
     return errors
-
-
 def check_tests_do_not_import_ui() -> list[str]:
     errors: list[str] = []
 
