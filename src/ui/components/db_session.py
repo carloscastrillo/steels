@@ -2,6 +2,12 @@ from __future__ import annotations
 
 import streamlit as st
 
+from src.services.matching_service import (
+    assign_match,
+    find_candidates,
+    list_approved_unmatched,
+    promote_to_core,
+)
 from src.services.shortlist_service import (
     get_request_quotes,
     list_shortlist,
@@ -73,6 +79,53 @@ def update_staging_review_status(quote_ids: list[int], status: str) -> int:
 
     clear_cache()
     return updated
+
+
+@st.cache_data(ttl=30)
+def load_approved_unmatched_quotes() -> list[dict]:
+    with connect() as conn:
+        rows = list_approved_unmatched(conn)
+        return [row.to_dict() for row in rows]
+
+
+@st.cache_data(ttl=30)
+def load_match_candidates(
+    quote_id: int,
+    top_n: int = 5,
+    min_score: float = 20.0,
+) -> list[dict]:
+    with connect() as conn:
+        rows = find_candidates(
+            conn,
+            quote_id=quote_id,
+            top_n=top_n,
+            min_score=min_score,
+        )
+        return [row.to_dict() for row in rows]
+
+
+def assign_match_action(quote_id: int, request_id: int) -> None:
+    with connect() as conn:
+        assign_match(conn, quote_id=quote_id, request_id=request_id)
+
+    clear_cache()
+
+
+def promote_quote_to_core_action(quote_id: int) -> int:
+    with connect() as conn:
+        core_quote_id = promote_to_core(conn, quote_id=quote_id)
+
+    clear_cache()
+    return core_quote_id
+
+
+def assign_and_promote_action(quote_id: int, request_id: int) -> int:
+    with connect() as conn:
+        assign_match(conn, quote_id=quote_id, request_id=request_id)
+        core_quote_id = promote_to_core(conn, quote_id=quote_id)
+
+    clear_cache()
+    return core_quote_id
 
 
 @st.cache_data(ttl=30)
