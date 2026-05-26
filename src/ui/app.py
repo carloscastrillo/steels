@@ -9,12 +9,12 @@ import streamlit as st
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
+from src.services.backup_service import create_startup_backup
 from src.ui.components.db_session import (
     get_database_path_text,
     load_shortlist_summary,
     load_staging_summary,
 )
-
 
 st.set_page_config(
     page_title="Steel MVP",
@@ -23,6 +23,14 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+if "startup_backup_done" not in st.session_state:
+    try:
+        backup_path = create_startup_backup(prefix="streamlit_startup")
+        st.session_state["startup_backup_done"] = True
+        st.session_state["startup_backup_path"] = str(backup_path)
+    except Exception as exc:
+        st.session_state["startup_backup_done"] = False
+        st.session_state["startup_backup_error"] = str(exc)
 
 st.title("Steel MVP")
 st.caption("Interfaz operativa local para sourcing, revisión de proveedores y reporting.")
@@ -32,6 +40,13 @@ st.sidebar.info(
     "Usa las páginas del menú lateral para revisar staging, hacer matching, "
     "consultar shortlist y generar reporting."
 )
+
+if st.session_state.get("startup_backup_path"):
+    st.sidebar.success("Backup inicial creado.")
+    st.sidebar.caption(st.session_state["startup_backup_path"])
+elif st.session_state.get("startup_backup_error"):
+    st.sidebar.error("No se pudo crear backup inicial.")
+    st.sidebar.caption(st.session_state["startup_backup_error"])
 
 st.subheader("Dashboard inicial")
 
