@@ -23,6 +23,12 @@ from src.services.staging_service import (
     set_review_status,
     staging_summary,
 )
+from src.services.reporting_service import (
+    generate_monthly_report,
+    generate_savings_report,
+    generate_sourcing_report,
+    list_export_files,
+)
 from src.utils.db import connect, get_db_path
 
 
@@ -190,3 +196,26 @@ def register_decision_action(
 
     clear_cache()
     return decision_id
+
+
+@st.cache_data(ttl=30)
+def load_export_files() -> list[dict]:
+    return list_export_files()
+
+
+def generate_sourcing_report_action() -> dict:
+    result = generate_sourcing_report()
+    clear_cache()
+    return result
+
+
+def generate_savings_report_action() -> dict:
+    result = generate_savings_report()
+    clear_cache()
+    return result
+
+
+def generate_monthly_report_action(month: str) -> dict:
+    result = generate_monthly_report(month)
+    clear_cache()
+    return result
