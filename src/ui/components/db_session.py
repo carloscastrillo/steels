@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from src.services.db_status_service import (
+    db_status_snapshot,
+    run_system_check,
+)
+
 import streamlit as st
 from src.services.dashboard_service import dashboard_snapshot
 
@@ -219,3 +224,15 @@ def generate_monthly_report_action(month: str) -> dict:
     result = generate_monthly_report(month)
     clear_cache()
     return result
+
+@st.cache_data(ttl=30)
+def load_db_status_snapshot() -> dict:
+    with connect() as conn:
+        return db_status_snapshot(conn)
+
+
+def run_system_check_action(check_name: str) -> dict:
+    result = run_system_check(check_name)
+    clear_cache()
+    return result
+
