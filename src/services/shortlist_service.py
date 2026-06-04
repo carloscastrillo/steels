@@ -188,6 +188,17 @@ def register_decision(
     selected_quote = _fetch_core_quote(conn, selected_quote_id)
     request = _fetch_request(conn, request_id)
 
+    existing_decision = conn.execute("""
+        SELECT id
+        FROM sourcing_decisions
+        WHERE sourcing_request_id = ?
+        LIMIT 1
+    """, (int(request_id),)).fetchone()
+
+    if existing_decision is not None:
+        return int(existing_decision["id"])
+
+
     if int(selected_quote["sourcing_request_id"]) != int(request_id):
         raise ValueError(
             "La quote seleccionada no pertenece a la sourcing_request indicada. "

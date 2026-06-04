@@ -253,17 +253,31 @@ else:
     if int(selected_quote_row.get("needs_manual_review") or 0) == 1:
         st.warning("La quote seleccionada tiene needs_manual_review=1. Revísala antes de decidir.")
 
-    if st.button("Registrar decisión", type="primary", width="stretch"):
+    already_awarded = selected.get("status") == "awarded"
+
+    if already_awarded:
+        st.info("Esta request ya está marcada como awarded. No se registrará una nueva decisión.")
+
+    if st.button(
+        "Registrar decisión",
+        type="primary",
+        width="stretch",
+        disabled=already_awarded,
+    ):
         if not reason.strip():
             st.error("El motivo no puede estar vacío.")
         elif not decided_by.strip():
             st.error("El campo 'decidido por' no puede estar vacío.")
         else:
-            decision_id = register_decision_action(
-                request_id=int(selected_request_id),
-                selected_quote_id=int(selected_quote_id),
-                reason=reason.strip(),
-                decided_by=decided_by.strip(),
-            )
-            st.success(f"Decisión registrada correctamente. ID: {decision_id}")
-            st.rerun()
+            try:
+                decision_id = register_decision_action(
+                    request_id=int(selected_request_id),
+                    selected_quote_id=int(selected_quote_id),
+                    reason=reason.strip(),
+                    decided_by=decided_by.strip(),
+                )
+                st.success(f"Decisión registrada correctamente. ID: {decision_id}")
+                st.rerun()
+            except Exception as exc:
+                st.error("No se pudo registrar la decisión.")
+                st.exception(exc)
