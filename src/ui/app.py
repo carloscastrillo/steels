@@ -9,6 +9,8 @@ import streamlit as st
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
+from src.ui.components.feedback import render_debug_toggle
+
 from src.services.backup_service import create_startup_backup
 from src.ui.components.db_session import (
     get_database_path_text,
@@ -47,6 +49,11 @@ if st.session_state.get("startup_backup_path"):
 elif st.session_state.get("startup_backup_error"):
     st.sidebar.error("No se pudo crear backup inicial.")
     st.sidebar.caption(st.session_state["startup_backup_error"])
+
+with st.sidebar:
+    st.divider()
+    st.caption("Modo soporte")
+    render_debug_toggle()
 
 st.subheader("Dashboard inicial")
 

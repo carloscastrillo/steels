@@ -5,7 +5,7 @@ import sys
 
 import pandas as pd
 import streamlit as st
-
+from src.ui.components.feedback import run_safe_action
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(BASE_DIR))
@@ -130,18 +130,24 @@ with check_col3:
 
 if check_to_run:
     with st.spinner(f"Ejecutando check: {check_to_run}..."):
-        result = run_system_check_action(check_to_run)
+        result = run_safe_action(
+            lambda: run_system_check_action(check_to_run),
+            success_message=f"Check {check_to_run} ejecutado.",
+            error_message=f"No se pudo ejecutar el check {check_to_run}.",
+            rerun=False,
+        )
 
-    if result.get("ok"):
-        st.success(f"Check {check_to_run} OK.")
-    else:
-        st.error(f"Check {check_to_run} fallo.")
+    if result:
+        if result.get("ok"):
+            st.success(f"Check {check_to_run} OK.")
+        else:
+            st.error(f"Check {check_to_run} falló.")
 
-    with st.expander("Ver salida tecnica", expanded=True):
-        st.json(result)
-        if result.get("stdout"):
-            st.markdown("#### stdout")
-            st.code(result["stdout"], language="text")
-        if result.get("stderr"):
-            st.markdown("#### stderr")
-            st.code(result["stderr"], language="text")
+        with st.expander("Ver salida técnica", expanded=True):
+            st.json(result)
+            if result.get("stdout"):
+                st.markdown("#### stdout")
+                st.code(result["stdout"], language="text")
+            if result.get("stderr"):
+                st.markdown("#### stderr")
+                st.code(result["stderr"], language="text")

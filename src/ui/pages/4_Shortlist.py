@@ -6,7 +6,7 @@ import sys
 import pandas as pd
 import streamlit as st
 
-
+from src.ui.components.feedback import run_safe_action, show_user_error
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(BASE_DIR))
 
@@ -269,15 +269,14 @@ else:
         elif not decided_by.strip():
             st.error("El campo 'decidido por' no puede estar vacío.")
         else:
-            try:
-                decision_id = register_decision_action(
+            run_safe_action(
+                lambda: register_decision_action(
                     request_id=int(selected_request_id),
                     selected_quote_id=int(selected_quote_id),
                     reason=reason.strip(),
                     decided_by=decided_by.strip(),
-                )
-                st.success(f"Decisión registrada correctamente. ID: {decision_id}")
-                st.rerun()
-            except Exception as exc:
-                st.error("No se pudo registrar la decisión.")
-                st.exception(exc)
+                ),
+                success_message="Decisión registrada correctamente.",
+                error_message="No se pudo registrar la decisión. Revisa si la request ya está adjudicada.",
+                rerun=True,
+            )

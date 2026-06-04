@@ -7,6 +7,7 @@ import sys
 import pandas as pd
 import streamlit as st
 
+from src.ui.components.feedback import run_safe_action, show_user_error
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(BASE_DIR))
@@ -48,30 +49,31 @@ with col1:
     st.write("Genera el informe operativo principal de sourcing.")
     if st.button("Generar sourcing report", width="stretch"):
         with st.spinner("Generando sourcing report..."):
-            result = generate_sourcing_report_action()
+            result = run_safe_action(
+                generate_sourcing_report_action,
+                success_message="Sourcing report generado correctamente.",
+                error_message="No se pudo generar el sourcing report.",
+                rerun=False,
+            )
 
-        if result["ok"]:
-            st.success("Sourcing report generado correctamente.")
-        else:
-            st.error("Error generando sourcing report.")
-
-        with st.expander("Ver salida técnica"):
-            st.json(result)
-
+        if result:
+            with st.expander("Ver salida técnica"):
+                st.json(result)
 with col2:
     st.markdown("#### Savings report")
     st.write("Genera el informe de ahorro y alternativas reales.")
     if st.button("Generar savings report", width="stretch"):
         with st.spinner("Generando savings report..."):
-            result = generate_savings_report_action()
+            result = run_safe_action(
+                generate_savings_report_action,
+                success_message="Savings report generado correctamente.",
+                error_message="No se pudo generar el savings report.",
+                rerun=False,
+            )
 
-        if result["ok"]:
-            st.success("Savings report generado correctamente.")
-        else:
-            st.error("Error generando savings report.")
-
-        with st.expander("Ver salida técnica"):
-            st.json(result)
+        if result:
+            with st.expander("Ver salida técnica"):
+                st.json(result)
 
 with col3:
     st.markdown("#### Monthly report")
@@ -83,21 +85,18 @@ with col3:
     )
 
     if st.button("Generar monthly report", width="stretch"):
-        try:
-            with st.spinner("Generando monthly report..."):
-                result = generate_monthly_report_action(month)
+        with st.spinner("Generando monthly report..."):
+            result = run_safe_action(
+                lambda: generate_monthly_report_action(month),
+                success_message="Monthly report generado correctamente.",
+                error_message="No se pudo generar el monthly report.",
+                rerun=False,
+            )
 
-            if result["ok"]:
-                st.success("Monthly report generado correctamente.")
-            else:
-                st.error("Error generando monthly report.")
-
+        if result:
             with st.expander("Ver salida técnica"):
                 st.json(result)
 
-        except Exception as exc:
-            st.error("No se pudo generar el monthly report.")
-            st.exception(exc)
 
 
 st.divider()
