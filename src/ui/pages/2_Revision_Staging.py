@@ -14,8 +14,10 @@ from src.ui.components.db_session import (
     clear_cache,
     load_supplier_options,
     load_staging_quotes,
+    update_staging_manual_review_flag,
     update_staging_review_status,
 )
+
 from src.ui.components.filters import (
     coating_text_filter,
     max_price_filter,
@@ -91,12 +93,15 @@ approved_count = int((df["review_status"] == "approved").sum())
 rejected_count = int((df["review_status"] == "rejected").sum())
 matched_count = int(df["matched_request_id"].notna().sum())
 
-col1, col2, col3, col4, col5 = st.columns(5)
+manual_review_count = int((df["needs_manual_review"] == 1).sum())
+
+col1, col2, col3, col4, col5, col6 = st.columns(6)
 col1.metric("Filtradas", len(df))
 col2.metric("Pendientes", pending_count)
 col3.metric("Aprobadas", approved_count)
 col4.metric("Rechazadas", rejected_count)
 col5.metric("Con match", matched_count)
+col6.metric("Revisión manual", manual_review_count)
 
 st.divider()
 
@@ -187,35 +192,66 @@ with action_col2:
         st.rerun()
 
 with action_col3:
+    if st.button("Validar para cálculo", disabled=not selected_ids, width="stretch"):
+        updated = update_staging_manual_review_flag(selected_ids, 0)
+        st.success(f"Quotes marcadas como válidas para cálculo: {updated}")
+        st.rerun()
+
+with action_col4:
+    if st.button("Requiere revisión manual", disabled=not selected_ids, width="stretch"):
+        updated = update_staging_manual_review_flag(selected_ids, 1)
+        st.success(f"Quotes marcadas como revisión manual: {updated}")
+        st.rerun()
+
+
+        
+st.markdown("#### Acciones por lote sobre el filtro actual")
+
+batch_col1, batch_col2, batch_col3, batch_col4 = st.columns(4)
+
+with batch_col1:
     if st.button("Aprobar todo el filtro", disabled=len(df) == 0, width="stretch"):
         st.session_state["confirm_batch_action"] = "approved"
 
-with action_col4:
+with batch_col2:
     if st.button("Rechazar todo el filtro", disabled=len(df) == 0, width="stretch"):
         st.session_state["confirm_batch_action"] = "rejected"
 
+with batch_col3:
+    if st.button("Validar filtro para cálculo", disabled=len(df) == 0, width="stretch"):
+        st.session_state["confirm_batch_manual_review"] = 0
 
-batch_action = st.session_state.get("confirm_batch_action")
+with batch_col4:
+    if st.button("Filtro requiere revisión", disabled=len(df) == 0, width="stretch"):
+        st.session_state["confirm_batch_manual_review"] = 1
 
-if batch_action:
+batch_manual_review = st.session_state.get("confirm_batch_manual_review")
+
+if batch_manual_review is not None:
+    label = (
+        "válidas para cálculo"
+        if int(batch_manual_review) == 0
+        else "requieren revisión manual"
+    )
+
     st.warning(
-        f"Vas a marcar {len(df)} quotes filtradas como '{batch_action}'. "
+        f"Vas a marcar {len(df)} quotes filtradas como '{label}'. "
         "Esta acción modifica la base de datos."
     )
 
     confirm_col1, confirm_col2 = st.columns([1, 1])
 
     with confirm_col1:
-        if st.button("Confirmar acción por lote", type="primary", width="stretch"):
+        if st.button("Confirmar cambio de revisión manual", type="primary", width="stretch"):
             ids = [int(value) for value in df["id"].tolist()]
-            updated = update_staging_review_status(ids, batch_action)
-            st.session_state.pop("confirm_batch_action", None)
+            updated = update_staging_manual_review_flag(ids, int(batch_manual_review))
+            st.session_state.pop("confirm_batch_manual_review", None)
             st.success(f"Quotes actualizadas: {updated}")
             st.rerun()
 
     with confirm_col2:
-        if st.button("Cancelar acción por lote", width="stretch"):
-            st.session_state.pop("confirm_batch_action", None)
+        if st.button("Cancelar cambio de revisión manual", width="stretch"):
+            st.session_state.pop("confirm_batch_manual_review", None)
             st.rerun()
 
 st.divider()

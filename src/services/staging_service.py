@@ -228,3 +228,33 @@ def pending_documents_by_supplier(conn: sqlite3.Connection, supplier_code: str) 
         }
         for item in result_rows
     ]
+
+def set_needs_manual_review(
+    conn: sqlite3.Connection,
+    quote_ids: Sequence[int],
+    needs_manual_review: int,
+) -> int:
+    if needs_manual_review not in {0, 1}:
+        raise ValueError("needs_manual_review debe ser 0 o 1.")
+
+    clean_ids = sorted({int(quote_id) for quote_id in quote_ids})
+
+    if not clean_ids:
+        return 0
+
+    placeholders = ",".join("?" for _ in clean_ids)
+
+    try:
+        cursor = conn.execute(
+            f"""
+            UPDATE stg_supplier_quotes
+            SET needs_manual_review = ?
+            WHERE id IN ({placeholders})
+            """,
+            [int(needs_manual_review), *clean_ids],
+        )
+        conn.commit()
+        return cursor.rowcount
+    except Exception:
+        conn.rollback()
+        raise

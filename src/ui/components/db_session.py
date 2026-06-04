@@ -19,6 +19,7 @@ from src.services.staging_service import (
     get_distinct_coatings,
     get_distinct_suppliers,
     list_staging_quotes,
+    set_needs_manual_review,
     set_review_status,
     staging_summary,
 )
@@ -85,6 +86,20 @@ def update_staging_review_status(quote_ids: list[int], status: str) -> int:
     clear_cache()
     return updated
 
+
+def update_staging_manual_review_flag(
+    quote_ids: list[int],
+    needs_manual_review: int,
+) -> int:
+    with connect() as conn:
+        updated = set_needs_manual_review(
+            conn,
+            quote_ids,
+            needs_manual_review,
+        )
+
+    clear_cache()
+    return updated
 
 @st.cache_data(ttl=30)
 def load_approved_unmatched_quotes() -> list[dict]:
