@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
@@ -64,15 +64,15 @@ def list_export_files() -> list[dict[str, Any]]:
     if not EXPORTS_DIR.exists():
         return []
 
-    rows: list[dict[str, Any]] = []
+    export_files: list[dict[str, Any]] = []
 
     for path in sorted(EXPORTS_DIR.glob("*.xlsx"), key=lambda item: item.stat().st_mtime, reverse=True):
         stat = path.stat()
-        rows.append({
+        export_files.append({
             "file_name": path.name,
             "path": str(path),
             "size_kb": round(stat.st_size / 1024, 2),
             "modified_at": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
         })
 
-    return rows
+    return export_files
