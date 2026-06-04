@@ -1,135 +1,52 @@
-# Sprint 7 — Validación E2E
+## Objective
 
-## Objetivo
+Validate the complete Steel MVP operational flow on a copy of the real database, without modifying production directly.
 
-Validar el flujo completo de Steel MVP sobre una copia de la DB real, sin tocar producción directamente.
+## Database used
 
-## Base de datos usada
+- Production DB copied from: `db/steel_mvp.db`
+- E2E validation DB: `db/steel_mvp_e2e_sprint7.db`
 
-- DB producción original: `db/steel_mvp.db`
-- DB de prueba E2E: `db/steel_mvp_e2e_sprint7.db`
-
-## Fecha de prueba
-
-Pendiente.
-
-## Flujo a validar
-
-1. Importar PDF de proveedor.
-2. Revisar y aprobar quotes en Pantalla 2 — Revisión Staging.
-3. Hacer matching y promover al core en Pantalla 3 — Matching.
-4. Recalcular shortlist.
-5. Verificar quote en Pantalla 4 — Shortlist.
-6. Registrar decisión.
-7. Verificar request `awarded` y decisión registrada.
-
-## Estado inicial
-
-E2E SPRINT 7 — ESTADO INICIAL
-----------------------------------------------------------------------------------------------------
-DB: db\steel_mvp_e2e_sprint7.db
-sourcing_requests_total: 73
-sourcing_requests_awarded: 3
-stg_supplier_quotes_total: 517
-stg_supplier_quotes_pending: 516
-stg_supplier_quotes_approved: 1
-stg_supplier_quotes_approved_unmatched: 0
-sourcing_quotes_total: 9
-sourcing_decisions_total: 3
-shortlist_total: 73
-shortlist_best_source_quote: 2
-
-Staging por proveedor/estado
-----------------------------------------------------------------------------------------------------
-('AM', 'pending', 6)
-('GALMED', 'approved', 1)
-('GALMED', 'pending', 285)
-('LUSO', 'pending', 205)
-('TATA', 'pending', 20)
-
-## Evidencias por paso
-Incidencia A1-E2E-001:
-Durante la prueba E2E se detectó que todas las quotes candidatas para matching tenían needs_manual_review=1. Aunque podían aprobarse y promoverse, no podían entrar en shortlist/savings porque el constructor excluye quotes con revisión manual pendiente. Se añadió en la pantalla Revisión Staging una acción explícita para marcar quotes como "validadas para cálculo", que actualiza needs_manual_review=0.
-### Paso 1 — Importar PDF
-
-Pendiente.
-
-### Paso 2 — Revisar/aprobar quote en UI
-
-Pendiente.
-
-### Paso 3 — Matching y promoción a core
-
-Pendiente.
-
-### Paso 4 — Recalcular shortlist
-
-Pendiente.
-
-### Paso 5 — Verificar aparición en shortlist
-
-Pendiente.
-
-### Paso 6 — Registrar decisión
-
-Pendiente.
-
-### Paso 7 — Verificación final DB
-
-Pendiente.
-
-## Resultado final
-
-Pendiente.
-
-## Incidencias encontradas
-
-Pendiente.
-
-## Decisión
-
-Pendiente.
-
-
-
----
-
----
-
-## Resultado E2E — PASS
-
-### Fecha
+## Date
 
 2026-06-04
 
-### DB usada
+## Validated flow
 
-`db/steel_mvp_e2e_sprint7.db`
+The following flow was validated from the Streamlit interface:
 
-### Flujo validado
+1. Review a supplier quote in staging.
+2. Approve the quote.
+3. Mark the quote as valid for calculation by setting `needs_manual_review=0`.
+4. Run matching quote -> request.
+5. Promote the staging quote to core `sourcing_quotes`.
+6. Rebuild shortlist.
+7. Verify that the promoted PDF quote appears as best option with `best_source='QUOTE'`.
+8. Register a sourcing decision.
+9. Verify that the request is marked as `awarded`.
 
-Se validó el flujo completo sobre copia de DB real:
+## E2E data used
 
-1. Quote staging de GALMED aprobada.
-2. Quote validada para cálculo (`needs_manual_review=0`).
-3. Matching quote → request ejecutado.
-4. Quote promovida al core (`sourcing_quotes`).
-5. Shortlist recalculada.
-6. Quote PDF aparece como mejor opción con `best_source='QUOTE'`.
-7. Decisión registrada.
-8. Request marcada como `awarded`.
-
-### Evidencia final
-
-Request validada:
+### Staging quote
 
 ```text
+stg_supplier_quote_id = 1129
+supplier_code = GALMED
+extracted_grade = GALMED Z100 | espesor 0,5-0,54
+coating_raw = Z100
+extracted_thickness_mm = 0.52
+extracted_price_per_ton = 17.0
+review_status = approved
+matched_sourcing_request_id = 67
+needs_manual_review = 0
+Matched request
 request_id = 67
 our_ref = 176188
-status = awarded
-
-Quote core validada:
-
+client = VENTILACION Y CONDUCTOS TASEL, S.L.
+grade = S220GD+Z100 MA C
+request_thickness_mm = 0.5
+status_after_decision = awarded
+Core quote created
 id = 10
 sourcing_request_id = 67
 supplier_code = GALMED
@@ -139,9 +56,7 @@ total_estimated_cost = 425.0
 quoted_tons = 25.0
 needs_manual_review = 0
 source_type = pdf
-
-Shortlist validada:
-
+Shortlist result
 sourcing_request_id = 67
 best_option_code = GALMED
 best_supplier_name = Galmed
@@ -154,9 +69,7 @@ third_unit_cost = 941.0
 am_spot_unit_cost = 937.0
 delta_best_vs_am_spot = -920.0
 savings_total_vs_am_spot = 23000.0
-
-Decisión registrada:
-
+Decision registered
 id = 4
 sourcing_request_id = 67
 selected_quote_id = 10
@@ -164,26 +77,49 @@ decision_reason = best_price
 decided_by = carlos
 decided_at = 2026-06-04T19:37:14
 created_at = 2026-06-04T19:37:14
-Validaciones automáticas
+Final automatic validation
 request_awarded: True
 decision_exists: True
 core_quote_clean: True
 shortlist_best_quote: True
 
 RESULTADO E2E: PASS
-Incidencia detectada A1-E2E-001
+Incidents detected
+A1-E2E-001 - Quotes approved but not usable in shortlist
 
-Durante la prueba E2E se detectó que todas las quotes candidatas tenían needs_manual_review=1. Aunque podían aprobarse y promoverse, no podían entrar en shortlist/savings porque el constructor excluye quotes con revisión manual pendiente.
+During the E2E validation, all candidate quotes had needs_manual_review=1.
 
-Se añadió en la pantalla Revisión Staging una acción explícita para marcar quotes como válidas para cálculo, actualizando needs_manual_review=0.
+This meant that quotes could be approved, matched and promoted to core, but they could not enter shortlist or savings calculations because the shortlist builder excludes quotes that still require manual review.
 
-Incidencia detectada A1-E2E-002
+Resolution:
 
-Durante el registro de decisión se detectó que la UI permitía intentar registrar una segunda decisión sobre una request ya awarded. SQLite protegió la integridad con un UNIQUE constraint en sourcing_decisions.sourcing_request_id, pero la UI mostraba traceback.
+Added an explicit action in the Staging Review screen to mark quotes as valid for calculation.
+This action updates needs_manual_review=0.
+A1-E2E-002 - Duplicate decision attempt
 
-Se corrige haciendo register_decision idempotente y deshabilitando el botón de decisión cuando la request ya está adjudicada.
+During the decision registration step, the UI allowed trying to register a second decision for a request that was already awarded.
 
-Resultado
+SQLite protected data integrity through the unique constraint on sourcing_decisions.sourcing_request_id, but the UI showed a traceback.
 
-PASS funcional. El flujo completo es operable desde la interfaz sobre una copia de DB real.
+Resolution:
 
+register_decision was made idempotent.
+The Shortlist screen disables the decision button when the request is already awarded.
+The UI now shows a clear message instead of allowing duplicate submission.
+Result
+
+PASS.
+
+The complete operational flow is now usable from the Streamlit interface on a copy of the real database:
+
+staging -> review -> matching -> core quote -> shortlist -> decision -> awarded request
+Checks executed
+python src/devtools/check_architecture.py
+python src/tests/test_parsers.py
+python src/devtools/smoke_test_schema.py
+
+Result:
+
+Architecture checks passed.
+All parser tests passed.
+schema.sql creates the same tables and columns as the real DB.
