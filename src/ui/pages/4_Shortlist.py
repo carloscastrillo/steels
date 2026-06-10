@@ -10,6 +10,11 @@ from src.ui.components.feedback import run_safe_action, show_user_error
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(BASE_DIR))
 
+from src.ui.components.risk_indicators import (
+    add_core_quote_risk_columns,
+    add_shortlist_risk_columns,
+)
+
 from src.ui.components.db_session import (
     clear_cache,
     load_request_core_quotes,
@@ -43,6 +48,8 @@ with st.sidebar:
 
 rows = load_shortlist_summary(only_with_alternatives=only_with_alternatives)
 df = pd.DataFrame(rows)
+
+df = add_shortlist_risk_columns(df)
 
 if df.empty:
     st.info("No hay shortlists para mostrar.")
@@ -174,6 +181,7 @@ selected_request_id = st.selectbox(
 selected = df[df["request_id"] == selected_request_id].iloc[0].to_dict()
 core_quotes = load_request_core_quotes(int(selected_request_id))
 quotes_df = pd.DataFrame(core_quotes)
+quotes_df = add_core_quote_risk_columns(quotes_df)
 
 st.subheader("Detalle de request")
 

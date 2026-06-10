@@ -10,6 +10,8 @@ import streamlit as st
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(BASE_DIR))
 
+from src.ui.components.risk_indicators import render_quote_risk_alert
+
 from src.ui.components.db_session import (
     assign_and_promote_action,
     assign_match_action,
@@ -86,6 +88,8 @@ selected_quote_id = st.selectbox(
 )
 
 selected_quote = quotes_df[quotes_df["id"] == selected_quote_id].iloc[0].to_dict()
+
+render_quote_risk_alert(selected_quote)
 
 st.subheader("Quote seleccionada")
 

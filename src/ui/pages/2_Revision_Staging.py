@@ -10,6 +10,8 @@ import streamlit as st
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(BASE_DIR))
 
+from src.ui.components.risk_indicators import add_staging_risk_columns
+
 from src.ui.components.db_session import (
     clear_cache,
     load_supplier_options,
@@ -83,6 +85,8 @@ quotes = load_staging_quotes(
 )
 
 df = pd.DataFrame(quotes)
+df = add_staging_risk_columns(df)
+
 
 if df.empty:
     st.info("No hay quotes que cumplan los filtros actuales.")

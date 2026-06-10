@@ -62,6 +62,53 @@ Modo recomendado:
 2. Ejecutar importaciones o procesos pesados.
 3. Volver a abrir la app con `run_app.bat`.
 
+--- 
+# 3.1. Glosario del proyecto HIERROS
+
+BOSS
+El fichero Excel operativo del jefe de compras. Es el nombre interno que la empresa da a su hoja de cálculo con macros (.xlsm). Contiene las necesidades de compra del mes: qué materiales se necesitan, para qué clientes, cuántas toneladas y a qué precio oferta cada proveedor. Es la Fuente B del sistema, la más importante operativamente.
+
+Staging
+Zona intermedia de cuarentena entre las fuentes de datos brutas y el modelo de negocio limpio. Cuando se importa un fichero (el BOSS, el SAP, un PDF), los datos no van directamente a la base de datos principal: van primero al staging. Allí se pueden revisar, corregir o rechazar antes de que "suban" al sistema real. El concepto viene del inglés staging area (zona de preparación), término estándar en ingeniería de datos. En el proyecto hay tablas de staging para SAP (stg_sap_zsd017_sales), para el BOSS (stg_boss_matrix) y para los documentos de proveedor (stg_supplier_quotes).
+
+Quote (cotización)
+Una oferta de precio de un proveedor para un material concreto, con sus condiciones (precio por tonelada, recubrimiento, espesor, ancho). Puede venir de tres sitios: introducida manualmente por el jefe, extraída automáticamente de un PDF de proveedor, o heredada del BOSS. En el sistema hay dos tipos: las quotes que están en staging (pendientes de revisión) y las quotes validadas que ya están en el núcleo (sourcing_quotes).
+
+Matching
+El proceso de conectar una quote de proveedor con la solicitud de compra que le corresponde. El problema es que una quote dice "para acero galvanizado Z140, espesor entre 0.5 y 0.7mm, el extra es 15€/t" y una solicitud dice "necesito 50 toneladas de DX51D+Z140 MA C, espesor exacto 0.6mm para el cliente X". El sistema calcula una puntuación de compatibilidad entre ambas y sugiere las mejores candidatas, pero la asignación final la confirma siempre el operador.
+
+Shortlist (lista corta)
+Para cada solicitud de compra del mes, la lista de las tres mejores opciones de proveedor ordenadas por precio, con el ahorro calculado respecto al precio de referencia de mercado (AM Spot). Es el elemento central del soporte a la decisión: el jefe de compras mira la shortlist y decide a quién adjudicar. En el sistema, la shortlist combina opciones del BOSS y quotes validadas de PDF.
+
+Sourcing (aprovisionamiento)
+El proceso de compra: identificar qué se necesita, buscar proveedores, comparar precios y decidir a quién comprar. En el proyecto, "sourcing requests" son las solicitudes de compra del mes, "sourcing quotes" son las cotizaciones validadas y "sourcing decisions" son las decisiones tomadas. Es terminología estándar del sector de compras industriales.
+
+Pipeline
+La cadena de pasos que se ejecuta cada mes para procesar el BOSS y generar la shortlist. En el proyecto son 11 pasos en orden: importar el BOSS, cargar especificaciones, cargar solicitudes, generar opciones de proveedor, calibrar capacidades, validar, calcular costes, clasificar comparabilidad, construir la shortlist y exportar el informe. Si un paso falla, el pipeline se detiene y reporta el error.
+
+Core (núcleo)
+Las tablas de la base de datos que contienen los datos limpios y validados del modelo de negocio. Es lo opuesto al staging: aquí solo llegan datos que han pasado por una transformación controlada. Nadie escribe directamente en el core desde un fichero bruto.
+
+Needs manual review (necesita revisión manual)
+Un indicador (0 o 1) en las quotes que señala si esa cotización es fiable para usarse en cálculos automáticos. Se pone a 1 automáticamente cuando hay motivos para desconfiar del dato: por ejemplo, las quotes de Luso tienen precios de 2014 y se marcan así para que no distorsionen el cálculo de ahorro. Una quote marcada así puede seguir usándose manualmente, pero el sistema la excluye de las comparaciones automáticas.
+
+AM Spot (precio de referencia ArcelorMittal)
+El precio de mercado de referencia de ArcelorMittal para cada material. Se usa como denominador común para calcular el ahorro: "si compramos a Galmed en vez de AM Spot, ahorramos X€/tonelada". No es un precio negociado: es la tarifa pública de mercado que sirve de referencia objetiva.
+
+Parser (analizador)
+El módulo de código que lee un PDF de proveedor y extrae los datos de precios de él. Cada proveedor tiene su formato de documento, así que hay parsers específicos: uno para ArcelorMittal/ILVA/EN_*, otro para Tata Steel, otro para Galmed y otro para Luso. El reto técnico es que los PDF no son tablas estructuradas sino documentos con texto y tablas en posiciones variables.
+
+ZSD017
+El nombre interno del informe de ventas del ERP SAP. Es una exportación del módulo de distribución (SD) que contiene el histórico comercial: clientes, materiales, cantidades y valores. En el proyecto se usa para construir el catálogo de clientes y materiales, no para precios.
+
+Best source (mejor fuente)
+Un campo de la shortlist que indica si la mejor opción para una solicitud viene del BOSS (BOSS) o de una quote extraída de un PDF de proveedor (QUOTE). Es la evidencia visible de que el pipeline documental aporta valor real: cuando aparece QUOTE, significa que el sistema encontró una alternativa más barata que las opciones del BOSS.
+
+Reporting
+La pantalla y los procesos de generación de informes. El sistema genera tres: el sourcing report (opciones por solicitud), el savings report (ahorro calculado) y el monthly report (resumen ejecutivo del mes completo). En la app, la pantalla de Reporting es donde el jefe genera y descarga estos ficheros Excel.
+
+Estado DB
+La pantalla de salud del sistema. Muestra el estado de la base de datos: cuántos clientes, materiales, solicitudes y quotes hay; si el esquema está bien; cuándo fue el último backup. Es el panel de "todo está bien" para el operador.
 ---
 
 # 4. Pantallas de la aplicación
