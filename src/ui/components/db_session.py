@@ -236,3 +236,89 @@ def run_system_check_action(check_name: str) -> dict:
     clear_cache()
     return result
 
+@st.cache_data(ttl=30)
+def load_monthly_matrix_records(
+    only_with_alternatives: bool = False,
+    only_pdf_best: bool = False,
+    status: str | None = None,
+    search: str | None = None,
+) -> list[dict]:
+    from src.services.matrix_service import list_monthly_matrix
+
+    with connect() as conn:
+        return list_monthly_matrix(
+            conn,
+            only_with_alternatives=only_with_alternatives,
+            only_pdf_best=only_pdf_best,
+            status=status,
+            search=search,
+        )
+
+
+@st.cache_data(ttl=30)
+def load_monthly_matrix_summary(
+    only_with_alternatives: bool = False,
+    only_pdf_best: bool = False,
+    status: str | None = None,
+    search: str | None = None,
+) -> dict:
+    from src.services.matrix_service import list_monthly_matrix, matrix_summary
+
+    with connect() as conn:
+        records = list_monthly_matrix(
+            conn,
+            only_with_alternatives=only_with_alternatives,
+            only_pdf_best=only_pdf_best,
+            status=status,
+            search=search,
+        )
+
+    return matrix_summary(records)
+
+
+@st.cache_data(ttl=30)
+def load_monthly_matrix_supplier_codes() -> list[str]:
+    from src.services.matrix_service import list_matrix_supplier_codes
+
+    with connect() as conn:
+        return list_matrix_supplier_codes(conn)
+
+
+@st.cache_data(ttl=30)
+def load_matrix_request_quotes(request_id: int) -> list:
+    from src.services.shortlist_service import get_request_quotes
+
+    with connect() as conn:
+        return get_request_quotes(conn, request_id)
+
+
+def register_matrix_decision(
+    request_id: int,
+    selected_quote_id: int,
+    reason: str,
+    decided_by: str,
+) -> int:
+    from src.services.shortlist_service import register_decision
+
+    with connect() as conn:
+        decision_id = register_decision(
+            conn,
+            request_id=request_id,
+            selected_quote_id=selected_quote_id,
+            reason=reason,
+            decided_by=decided_by,
+        )
+
+    clear_cache()
+    return decision_id
+
+
+def rebuild_monthly_matrix() -> int:
+    from src.services.shortlist_service import rebuild_shortlist
+
+    with connect() as conn:
+        result = rebuild_shortlist(conn)
+
+    clear_cache()
+    return result
+

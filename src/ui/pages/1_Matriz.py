@@ -9,6 +9,7 @@ import streamlit as st
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(BASE_DIR))
 
+from src.ui.components.monthly_matrix import render_monthly_matrix_section
 from src.ui.components.feedback import run_safe_action
 from src.ui.components.risk_indicators import (
     add_core_quote_risk_columns,
@@ -39,6 +40,13 @@ page_header(
     "Vista mensual de solicitudes y mejores opciones por proveedor. "
     "Datos calculados con los precios disponibles más recientes.",
 )
+
+
+render_monthly_matrix_section()
+
+st.divider()
+st.subheader("Vista operativa anterior")
+st.caption("Se mantiene temporalmente como soporte mientras validamos la nueva matriz mensual.")
 
 STATUS_LABELS = {
     "pending_review": "Pendiente de decisión",
