@@ -12,6 +12,7 @@ sys.path.append(str(BASE_DIR))
 
 from src.ui.components.risk_indicators import add_staging_risk_columns
 
+from src.ui.components.theme import inject_theme, page_header
 from src.ui.components.db_session import (
     clear_cache,
     load_supplier_options,
@@ -29,10 +30,15 @@ from src.ui.components.filters import (
 )
 
 
-st.set_page_config(page_title="Revisión staging", page_icon="📋", layout="wide")
+st.set_page_config(page_title="Revisión de Precios", page_icon="📋", layout="wide")
 
-st.title("Revisión staging")
-st.caption("Revisión masiva de quotes extraídas desde PDFs de proveedor.")
+inject_theme()
+
+page_header(
+    "Revisión de Precios de Proveedores",
+    "Revisa los precios que llegan de proveedores antes de usarlos en la matriz.",
+)
+
 
 suppliers = load_supplier_options()
 
@@ -89,7 +95,7 @@ df = add_staging_risk_columns(df)
 
 
 if df.empty:
-    st.info("No hay quotes que cumplan los filtros actuales.")
+    st.info("No hay precios de proveedor que cumplan los filtros actuales.")
     st.stop()
 
 pending_count = int((df["review_status"] == "pending").sum())
@@ -133,7 +139,7 @@ display_columns = [
 
 display_df = display_df[display_columns]
 
-st.subheader("Quotes filtradas")
+st.subheader("Precios detectados")
 
 edited_df = st.data_editor(
     display_df,
@@ -186,25 +192,25 @@ action_col1, action_col2, action_col3, action_col4 = st.columns([1, 1, 1.4, 1.4]
 with action_col1:
     if st.button("Aprobar seleccionadas", disabled=not selected_ids, width="stretch"):
         updated = update_staging_review_status(selected_ids, "approved")
-        st.success(f"Quotes aprobadas: {updated}")
+        st.success(f"Precios aprobados: {updated}")
         st.rerun()
 
 with action_col2:
     if st.button("Rechazar seleccionadas", disabled=not selected_ids, width="stretch"):
         updated = update_staging_review_status(selected_ids, "rejected")
-        st.success(f"Quotes rechazadas: {updated}")
+        st.success(f"Precios rechazados: {updated}")
         st.rerun()
 
 with action_col3:
     if st.button("Validar para cálculo", disabled=not selected_ids, width="stretch"):
         updated = update_staging_manual_review_flag(selected_ids, 0)
-        st.success(f"Quotes marcadas como válidas para cálculo: {updated}")
+        st.success(f"Precios marcados como válidos para cálculo: {updated}")
         st.rerun()
 
 with action_col4:
-    if st.button("Requiere revisión manual", disabled=not selected_ids, width="stretch"):
+    if st.button("Requiere revisión", disabled=not selected_ids, width="stretch"):
         updated = update_staging_manual_review_flag(selected_ids, 1)
-        st.success(f"Quotes marcadas como revisión manual: {updated}")
+        st.success(f"Precios marcados como requieren revisión: {updated}")
         st.rerun()
 
 
@@ -250,7 +256,7 @@ if batch_manual_review is not None:
             ids = [int(value) for value in df["id"].tolist()]
             updated = update_staging_manual_review_flag(ids, int(batch_manual_review))
             st.session_state.pop("confirm_batch_manual_review", None)
-            st.success(f"Quotes actualizadas: {updated}")
+            st.success(f"Precios actualizados: {updated}")
             st.rerun()
 
     with confirm_col2:
@@ -260,7 +266,7 @@ if batch_manual_review is not None:
 
 st.divider()
 
-st.subheader("Detalle / raw snippet")
+st.subheader("Ver origen del dato")
 
 detail_ids = df["id"].astype(int).tolist()
 selected_detail_id = st.selectbox(

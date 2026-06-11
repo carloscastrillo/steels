@@ -5,6 +5,7 @@ import sys
 
 import pandas as pd
 import streamlit as st
+from src.ui.components.theme import inject_theme, page_header
 from src.ui.components.feedback import run_safe_action
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
@@ -18,9 +19,14 @@ from src.ui.components.db_session import (
 from src.ui.components.filters import format_eur
 
 
-st.set_page_config(page_title="Estado DB", page_icon="🗄️", layout="wide")
+st.set_page_config(page_title="Estado del Sistema", page_icon="🗄️", layout="wide")
 
-st.title("Estado DB")
+inject_theme()
+
+page_header(
+    "Estado del Sistema",
+    "Salud técnica de la base de datos, copias de seguridad y comprobaciones.",
+)
 st.caption("Estado tecnico de la base de datos, backups, exports y checks del sistema.")
 
 with st.sidebar:

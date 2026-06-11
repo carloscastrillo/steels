@@ -25,32 +25,32 @@ def review_status_label(value: Any) -> str:
     status = _as_text(value).lower()
 
     if status == "approved":
-        return "🟢 Aprobada"
+        return "🟢 Aprobado"
     if status == "rejected":
-        return "🔴 Rechazada"
+        return "🔴 Rechazado"
     if status == "pending":
-        return "🟡 Pendiente"
+        return "🟡 Pendiente de decisión"
 
     return f"⚪ {value}" if value else "⚪ Sin estado"
 
 
 def manual_review_label(value: Any) -> str:
-    return "🔴 Requiere revisión" if _as_int(value, 1) == 1 else "🟢 Válida cálculo"
+    return "🔴 Requiere revisión" if _as_int(value, 1) == 1 else "🟢 Válido para cálculo"
 
 
 def match_label(value: Any) -> str:
     if value is None or str(value).strip() in {"", "nan", "None"}:
-        return "🟡 Sin match"
-    return f"🟢 Match #{value}"
+        return "🟡 Sin asignar"
+    return f"🟢 Asignado #{value}"
 
 
 def source_label(value: Any) -> str:
     source = _as_text(value).upper()
 
     if source == "QUOTE":
-        return "🟣 QUOTE-PDF"
+        return "🟣 PDF proveedor"
     if source == "BOSS":
-        return "🔵 BOSS"
+        return "🔵 Matriz"
     if not source:
         return "⚪ Sin origen"
 
@@ -61,11 +61,11 @@ def request_status_label(value: Any) -> str:
     status = _as_text(value).lower()
 
     if status == "awarded":
-        return "🟢 Awarded"
+        return "🟢 Adjudicado"
     if status == "cancelled":
-        return "🔴 Cancelled"
+        return "🔴 Cancelado"
     if status in {"pending_review", "pending"}:
-        return "🟡 Pendiente"
+        return "🟡 Pendiente de decisión"
 
     return f"⚪ {value}" if value else "⚪ Sin estado"
 
@@ -135,13 +135,13 @@ def render_staging_quote_risk_alert(
     matched_request_id: Any = None,
 ) -> None:
     if _as_text(review_status).lower() == "pending":
-        st.warning("Esta quote todavía está pendiente de aprobación.")
+        st.warning("Este precio todavía está pendiente de aprobación.")
 
     if _as_int(needs_manual_review, 1) == 1:
-        st.error("Esta quote requiere revisión manual. Aunque se apruebe, no entra en shortlist/savings hasta marcarla como válida para cálculo.")
+        st.error("Este precio requiere revisión. Aunque se apruebe, no entra en la matriz ni en el cálculo de ahorro hasta marcarlo como válido para cálculo.")
 
     if matched_request_id is None or str(matched_request_id).strip() in {"", "nan", "None"}:
-        st.info("Esta quote todavía no tiene match con una request.")
+        st.info("Este precio todavía no está asignado a ninguna solicitud.")
 
 def get_field(item: Any, *names: str, default: Any = None) -> Any:
     for name in names:

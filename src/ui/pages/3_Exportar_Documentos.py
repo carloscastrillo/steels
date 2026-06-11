@@ -7,6 +7,7 @@ import sys
 import pandas as pd
 import streamlit as st
 
+from src.ui.components.theme import inject_theme, page_header
 from src.ui.components.feedback import run_safe_action, show_user_error
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
@@ -21,10 +22,15 @@ from src.ui.components.db_session import (
 )
 
 
-st.set_page_config(page_title="Reporting", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Exportar Documentos", page_icon="📤", layout="wide")
 
-st.title("Reporting")
-st.caption("Generación y consulta de informes Excel del sistema.")
+inject_theme()
+
+page_header(
+    "Exportar Documentos",
+    "Genera y descarga los informes operativos del sistema.",
+)
+
 
 with st.sidebar:
     st.header("Acciones")
@@ -45,7 +51,8 @@ current_month = datetime.now().strftime("%Y-%m")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.markdown("#### Sourcing report")
+    st.markdown("#### Informe de opciones de compra")
+    st.caption("(sourcing report)")
     st.write("Genera el informe operativo principal de sourcing.")
     if st.button("Generar sourcing report", width="stretch"):
         with st.spinner("Generando sourcing report..."):
@@ -60,7 +67,8 @@ with col1:
             with st.expander("Ver salida técnica"):
                 st.json(result)
 with col2:
-    st.markdown("#### Savings report")
+    st.markdown("#### Informe de ahorro")
+    st.caption("(savings report)")
     st.write("Genera el informe de ahorro y alternativas reales.")
     if st.button("Generar savings report", width="stretch"):
         with st.spinner("Generando savings report..."):
@@ -76,7 +84,8 @@ with col2:
                 st.json(result)
 
 with col3:
-    st.markdown("#### Monthly report")
+    st.markdown("#### Informe mensual")
+    st.caption("(monthly report)")
     st.write("Genera el informe mensual completo.")
     month = st.text_input(
         "Mes",
@@ -101,7 +110,7 @@ with col3:
 
 st.divider()
 
-st.subheader("Exports disponibles")
+st.subheader("Documentos disponibles")
 
 exports = load_export_files()
 
