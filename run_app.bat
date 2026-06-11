@@ -21,6 +21,6 @@ echo La app se abrira en el navegador.
 echo Para cerrar, vuelve a esta ventana y pulsa CTRL+C.
 echo.
 
-streamlit run src/ui/app.py
+streamlit run src/ui/Inicio.py
 
 pause

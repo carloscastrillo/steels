@@ -23,6 +23,6 @@ echo Esta app NO usa la DB de produccion.
 echo Para cerrar, vuelve a esta ventana y pulsa CTRL+C.
 echo.
 
-streamlit run src/ui/app.py
+streamlit run src/ui/Inicio.py
 
 pause
