@@ -10,6 +10,7 @@ import streamlit as st
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(BASE_DIR))
 
+from src.ui.components.supplier_documents import render_supplier_documents_section
 from src.ui.components.risk_indicators import add_staging_risk_columns
 
 from src.ui.components.theme import inject_theme, page_header
@@ -38,6 +39,13 @@ page_header(
     "Revisión de Precios de Proveedores",
     "Revisa los precios que llegan de proveedores antes de usarlos en la matriz.",
 )
+
+
+render_supplier_documents_section()
+
+st.divider()
+st.subheader("Precios detectados pendientes de revisión")
+st.caption("Los precios extraídos de documentos existentes se revisan y validan aquí antes de usarse en la Matriz.")
 
 
 suppliers = load_supplier_options()

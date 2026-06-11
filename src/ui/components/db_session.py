@@ -322,3 +322,41 @@ def rebuild_monthly_matrix() -> int:
     clear_cache()
     return result
 
+@st.cache_data(ttl=30)
+def load_supplier_documents(limit: int = 100) -> list:
+    from src.services.supplier_document_service import list_supplier_documents
+
+    with connect() as conn:
+        return list_supplier_documents(conn, limit=limit)
+
+
+@st.cache_data(ttl=30)
+def load_supplier_price_freshness() -> list:
+    from src.services.supplier_document_service import supplier_price_freshness
+
+    with connect() as conn:
+        return supplier_price_freshness(conn)
+
+
+def save_supplier_document_upload(
+    file_bytes: bytes,
+    filename: str,
+    supplier_code: str,
+    uploaded_by: str | None = None,
+    notes: str | None = None,
+) -> int:
+    from src.services.supplier_document_service import save_uploaded_supplier_document
+
+    with connect() as conn:
+        document_id = save_uploaded_supplier_document(
+            conn,
+            file_bytes=file_bytes,
+            filename=filename,
+            supplier_code=supplier_code,
+            uploaded_by=uploaded_by,
+            notes=notes,
+        )
+
+    clear_cache()
+    return document_id
+
